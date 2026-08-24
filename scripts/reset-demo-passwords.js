@@ -1,7 +1,8 @@
+require('dotenv').config();
 const crypto = require('crypto');
-const { query, close } = require('../routes/bd');
+const { getPool } = require('../routes/bd');
 
-const usuarios = [
+const DEMO_USERS = [
   ['admin', 'Admin123!'],
   ['recepcionista1', 'Recep123!'],
   ['mecanico1', 'Meca123!'],
@@ -15,42 +16,58 @@ const usuarios = [
 ];
 
 async function main() {
-  try {
-    for (const [usuario, password] of usuarios) {
-      const salt = crypto.randomBytes(32);
+  const pool = await getPool();
 
-      // IMPORTANTE:
-      // Debe coincidir exactamente con routes/api/auth.js
-      const hash = crypto.scryptSync(password, salt, 64);
+  const info = await pool.request().query(`
+    SELECT @@SERVERNAME AS servidor, DB_NAME() AS base_datos
+  `);
+  console.log('Reset demo conectado a:', info.recordset[0]);
 
-      const result = await query(
-        UPDATE USUARIOS
-        SET
-          password_hash = @hash,
-          password_salt = @salt,
-          activo = 1,
-          intentos_fallidos = 0,
-          bloqueado_hasta = NULL
-        WHERE LOWER(nombre_usuario) = LOWER(@usuario)
-      , {
-        usuario,
-        hash,
-        salt
-      });
+  let updated = 0;
 
-      console.log(Actualizado: ${usuario});
-    }
+  for (const [nombre_usuario, password] of DEMO_USERS) {
+    const salt = crypto.randomBytes(32);
+    const hash = crypto.scryptSync(password, salt, 64);
 
-    console.log('');
-    console.log('Contraseñas de demostración actualizadas correctamente.');
-  } catch (err) {
-    console.error('ERROR:', err);
-    process.exitCode = 1;
-  } finally {
-    if (typeof close === 'function') {
-      await close();
+    const result = await pool.request()
+      .input('nombre_usuario', nombre_usuario)
+      .input('password_hash', hash)
+      .input('password_salt', salt)
+      .query(`
+        UPDATE dbo.USUARIOS
+        SET password_hash = @password_hash,
+            password_salt = @password_salt,
+            activo = 1,
+            intentos_fallidos = 0,
+            bloqueado_hasta = NULL
+        WHERE LOWER(nombre_usuario) = LOWER(@nombre_usuario)
+      `);
+
+    const rows = result.rowsAffected.reduce((a, b) => a + b, 0);
+    if (rows > 0) {
+      updated += rows;
+      console.log(`OK  ${nombre_usuario.padEnd(16)} -> contraseña demo actualizada`);
+    } else {
+      console.log(`NO ENCONTRADO: ${nombre_usuario}`);
     }
   }
+
+  const check = await pool.request().query(`
+    SELECT nombre_usuario,
+           DATALENGTH(password_hash) AS hash_bytes,
+           DATALENGTH(password_salt) AS salt_bytes,
+           activo
+    FROM dbo.USUARIOS
+    WHERE nombre_usuario IN ('admin','recepcionista1','mecanico1','inventario1','vendedor1','cajero1','supervisor1')
+    ORDER BY nombre_usuario
+  `);
+
+  console.table(check.recordset);
+  console.log(`Usuarios actualizados: ${updated}`);
+  await pool.close();
 }
 
-main();
+main().catch(err => {
+  console.error('Error al reiniciar contraseñas:', err);
+  process.exit(1);
+});
