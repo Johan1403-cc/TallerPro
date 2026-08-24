@@ -1,0 +1,43 @@
+<section class="panel">
+  <h2>Prestamo {{prestamo.numero_prestamo}}</h2>
+  <p>Cliente: <strong>{{prestamo.nombre}} {{prestamo.apellidos}}</strong></p>
+
+  <div class="tarjeta-cuenta">
+    <div class="tarjeta-cuenta-fila">
+      <span class="etiqueta">Monto solicitado</span>
+      <span class="valor">{{prestamo.monto}}</span>
+    </div>
+    <div class="tarjeta-cuenta-fila">
+      <span class="etiqueta">Plazo</span>
+      <span class="valor">{{prestamo.plazo_meses}} meses</span>
+    </div>
+    <div class="tarjeta-cuenta-fila">
+      <span class="etiqueta">Cuota mensual</span>
+      <span class="valor saldo">{{prestamo.cuota_mensual}}</span>
+    </div>
+    <div class="tarjeta-cuenta-fila">
+      <span class="etiqueta">Fecha de solicitud</span>
+      <span class="valor">{{prestamo.fecha_solicitud}}</span>
+    </div>
+  </div>
+
+  <h3 class="subtitulo">Tabla de cuotas</h3>
+  <table class="tabla">
+    <thead>
+      <tr><th>Cuota #</th><th>Fecha estimada</th><th>Monto a pagar</th></tr>
+    </thead>
+    <tbody>
+      {{#each cuotas}}
+      <tr>
+        <td>{{this.numero}}</td>
+        <td>{{this.fecha}}</td>
+        <td>{{this.monto}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <div class="acciones">
+    <a class="boton" href="/clientes/perfil/{{prestamo.cliente_id}}">Volver al perfil del cliente</a>
+  </div>
+</section>

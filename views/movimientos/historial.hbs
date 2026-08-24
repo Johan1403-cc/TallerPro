@@ -1,0 +1,40 @@
+<section class="panel">
+  <div class="panel-header">
+    <h2>Historial de movimientos (auditoria)</h2>
+  </div>
+
+  {{#if movimientos.length}}
+  <table class="tabla">
+    <thead>
+      <tr>
+        <th>Numero</th>
+        <th>Cliente</th>
+        <th>Cuenta (IBAN)</th>
+        <th>Tipo</th>
+        <th>Monto</th>
+        <th>Moneda</th>
+        <th>Saldo anterior</th>
+        <th>Saldo nuevo</th>
+        <th>Fecha</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each movimientos}}
+      <tr>
+        <td>{{this.numero_movimiento}}</td>
+        <td>{{this.nombre}} {{this.apellidos}}</td>
+        <td>{{this.iban}}</td>
+        <td><span class="etiqueta-tipo etiqueta-{{this.tipo}}">{{this.tipo}}</span></td>
+        <td>{{this.monto}}</td>
+        <td>{{this.moneda}}</td>
+        <td>{{this.saldo_anterior}}</td>
+        <td>{{this.saldo_nuevo}}</td>
+        <td>{{this.fecha}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+    <p class="vacio">Todavia no se han registrado movimientos.</p>
+  {{/if}}
+</section>

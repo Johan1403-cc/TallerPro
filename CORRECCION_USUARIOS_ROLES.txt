@@ -1,0 +1,1 @@
+Corrección de Usuarios y Roles: se añadió el recurso roles como compatibilidad, validación de endpoint y cache-busting del app.js. Conserva tu .env.

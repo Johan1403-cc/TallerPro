@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TallerPro | Iniciar sesión</title>
+  <link rel="stylesheet" href="/stylesheets/style.css">
+  <link rel="stylesheet" href="/stylesheets/login.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+</head>
+<body class="login-page">
+  <main class="login-shell">
+    <section class="login-card">
+      <div class="login-brand">
+        <div class="login-logo"><i class="fa-solid fa-screwdriver-wrench"></i></div>
+        <div>
+          <div class="login-title">Taller<strong>Pro</strong></div>
+          <div class="login-subtitle">Gestión de taller mecánico</div>
+        </div>
+      </div>
+
+      <div class="login-heading">
+        <h1>Iniciar sesión</h1>
+        <p>Ingresa con tu usuario para acceder al sistema.</p>
+      </div>
+
+      <form id="loginForm" autocomplete="on">
+        <label class="login-field">
+          <span>Usuario</span>
+          <div class="login-input-wrap">
+            <i class="fa-solid fa-user"></i>
+            <input id="nombre_usuario" name="nombre_usuario" type="text"
+                   autocomplete="username" placeholder="Ej. admin" required autofocus>
+          </div>
+        </label>
+
+        <label class="login-field">
+          <span>Contraseña</span>
+          <div class="login-input-wrap">
+            <i class="fa-solid fa-lock"></i>
+            <input id="password" name="password" type="password"
+                   autocomplete="current-password" placeholder="••••••••" required>
+            <button type="button" id="togglePassword" class="password-toggle" aria-label="Mostrar contraseña">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </label>
+
+        <div id="loginError" class="login-error" role="alert" hidden></div>
+
+        <button id="loginButton" class="login-button" type="submit">
+          <span>Iniciar sesión</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </form>
+
+      <p class="login-footer">TallerPro · Sistema de gestión automotriz</p>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const error = document.getElementById('loginError');
+    const button = document.getElementById('loginButton');
+    const password = document.getElementById('password');
+    const toggle = document.getElementById('togglePassword');
+
+    toggle.addEventListener('click', () => {
+      const visible = password.type === 'text';
+      password.type = visible ? 'password' : 'text';
+      toggle.innerHTML = visible
+        ? '<i class="fa-regular fa-eye"></i>'
+        : '<i class="fa-regular fa-eye-slash"></i>';
+      toggle.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      error.hidden = true;
+      button.disabled = true;
+      button.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificando...';
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre_usuario: document.getElementById('nombre_usuario').value,
+            password: password.value
+          })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'No se pudo iniciar sesión.');
+        }
+
+        window.location.href = '/';
+      } catch (e) {
+        error.textContent = e.message;
+        error.hidden = false;
+        password.focus();
+      } finally {
+        button.disabled = false;
+        button.innerHTML = '<span>Iniciar sesión</span><i class="fa-solid fa-arrow-right"></i>';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+<section class="panel panel-formulario">
+  <h2>Solicitar prestamo</h2>
+  <form method="POST" action="/prestamos/alta">
+    <div class="campo campo-ancho">
+      <label>Cliente</label>
+      <select name="cliente_id" required>
+        <option value="">-- Seleccione un cliente --</option>
+        {{#each clientes}}
+          <option value="{{this.id}}">{{this.nombre}} {{this.apellidos}} ({{this.cedula}})</option>
+        {{/each}}
+      </select>
+    </div>
+    <div class="campo">
+      <label>Monto solicitado</label>
+      <input type="number" name="monto" step="0.01" min="0.01" required />
+    </div>
+    <div class="campo">
+      <label>Plazo</label>
+      <select name="plazo_meses" required>
+        <option value="3">3 meses</option>
+        <option value="6">6 meses</option>
+        <option value="12">12 meses</option>
+      </select>
+    </div>
+    <p class="nota">La cuota mensual se calcula dividiendo el monto solicitado entre la cantidad de meses del plazo.</p>
+    <div class="acciones">
+      <button type="submit" class="boton">Solicitar prestamo</button>
+    </div>
+  </form>
+</section>

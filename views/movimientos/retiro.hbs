@@ -1,0 +1,34 @@
+<section class="panel panel-formulario">
+  <h2>Realizar retiro</h2>
+  <form method="POST" action="/movimientos/retiro">
+    <div class="campo campo-ancho">
+      <label>Cuenta origen</label>
+      <select name="cuenta_id" required>
+        <option value="">-- Seleccione una cuenta --</option>
+        {{#each cuentas}}
+          <option value="{{this.id}}">{{this.iban}} - {{this.nombre}} {{this.apellidos}} ({{this.moneda}}) - Saldo actual: {{this.saldo}}</option>
+        {{/each}}
+      </select>
+    </div>
+    <div class="campo">
+      <label>Monto</label>
+      <input type="number" name="monto" step="0.01" min="0.01" required />
+    </div>
+    <div class="campo">
+      <label>Fecha</label>
+      <input type="date" name="fecha" required />
+    </div>
+    <div class="campo campo-ancho">
+      <label>Descripcion</label>
+      <input type="text" name="descripcion" maxlength="200" required placeholder="Ej: Retiro en ventanilla" />
+    </div>
+    <p class="nota">
+      El sistema valida que la cuenta tenga saldo suficiente para cubrir el retiro mas la comision correspondiente.
+      La comision se calcula segun el monto retirado y se registra como un movimiento aparte.
+      Puede revisar o editar los tramos de comision en <a href="/comisiones/control">Control de comisiones</a>.
+    </p>
+    <div class="acciones">
+      <button type="submit" class="boton boton-secundario">Confirmar retiro</button>
+    </div>
+  </form>
+</section>

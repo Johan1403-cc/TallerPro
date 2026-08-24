@@ -1,0 +1,51 @@
+<section class="panel">
+  <div class="panel-header">
+    <h2>Control de comisiones por retiro</h2>
+  </div>
+
+  <p class="nota">
+    Estos son los tramos que se usan para calcular la comision que se cobra en cada retiro.
+    Se busca el tramo donde el monto retirado quede entre "Desde" y "Hasta", y se cobra el porcentaje indicado.
+    Deje "Hasta" en blanco para indicar que el tramo no tiene limite superior.
+  </p>
+
+  {{#if comisiones.length}}
+  <form method="POST" action="/comisiones/control">
+    <table class="tabla">
+      <thead>
+        <tr>
+          <th>Tramo</th>
+          <th>Desde (monto)</th>
+          <th>Hasta (monto)</th>
+          <th>Comision (%)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each comisiones}}
+        <tr>
+          <td>
+            {{this.nombre}}
+            <input type="hidden" name="id" value="{{this.id}}" />
+          </td>
+          <td>
+            <input type="number" name="monto_desde" step="0.01" min="0" value="{{this.monto_desde}}" required />
+          </td>
+          <td>
+            <input type="number" name="monto_hasta" step="0.01" min="0" value="{{this.monto_hasta}}" placeholder="Sin limite" />
+          </td>
+          <td>
+            <input type="number" name="porcentaje" step="0.01" min="0" max="100" value="{{this.porcentaje}}" required />
+          </td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div class="acciones">
+      <button type="submit" class="boton boton-secundario">Guardar cambios</button>
+    </div>
+  </form>
+  {{else}}
+    <p class="vacio">No hay tramos de comision configurados. Ejecute "Configuracion BD" desde el menu para crear los valores por defecto.</p>
+  {{/if}}
+</section>

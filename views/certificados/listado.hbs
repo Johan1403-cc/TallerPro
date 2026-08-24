@@ -1,0 +1,29 @@
+<section class="panel">
+  <div class="panel-header">
+    <h2>Listado de certificados</h2>
+    <a class="boton boton-chico" href="/certificados/alta">+ Solicitar certificado</a>
+  </div>
+
+  {{#if certificados.length}}
+  <table class="tabla">
+    <thead>
+      <tr><th>Numero</th><th>Cliente</th><th>Monto</th><th>Plazo</th><th>Tasa anual</th><th>Monto al vencer</th><th>Vence</th></tr>
+    </thead>
+    <tbody>
+      {{#each certificados}}
+      <tr>
+        <td>{{this.numero_certificado}}</td>
+        <td>{{this.nombre}} {{this.apellidos}}</td>
+        <td>{{this.monto}}</td>
+        <td>{{this.plazo_meses}} meses</td>
+        <td>{{this.tasa_interes}}%</td>
+        <td>{{this.monto_vencimiento}}</td>
+        <td>{{this.fecha_vencimiento}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+  {{else}}
+    <p class="vacio">No hay certificados registrados.</p>
+  {{/if}}
+</section>
