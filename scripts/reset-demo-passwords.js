@@ -1,8 +1,7 @@
-require('dotenv').config();
 const crypto = require('crypto');
-const { getPool } = require('../routes/bd');
+const { query, close } = require('../routes/bd');
 
-const DEMO_USERS = [
+const usuarios = [
   ['admin', 'Admin123!'],
   ['recepcionista1', 'Recep123!'],
   ['mecanico1', 'Meca123!'],
@@ -16,40 +15,42 @@ const DEMO_USERS = [
 ];
 
 async function main() {
-  const pool = await getPool();
-  let updated = 0;
+  try {
+    for (const [usuario, password] of usuarios) {
+      const salt = crypto.randomBytes(32);
 
-  for (const [nombre_usuario, password] of DEMO_USERS) {
-    const salt = crypto.randomBytes(32);
-    const hash = crypto.scryptSync(password, salt, 64);
-    const result = await pool.request()
-      .input('nombre_usuario', nombre_usuario)
-      .input('password_hash', hash)
-      .input('password_salt', salt)
-      .query(`
+      // IMPORTANTE:
+      // Debe coincidir exactamente con routes/api/auth.js
+      const hash = crypto.scryptSync(password, salt, 64);
+
+      const result = await query(
         UPDATE USUARIOS
-        SET password_hash=@password_hash,
-            password_salt=@password_salt,
-            activo=1,
-            intentos_fallidos=0,
-            bloqueado_hasta=NULL
-        WHERE LOWER(nombre_usuario)=LOWER(@nombre_usuario)
-      `);
+        SET
+          password_hash = @hash,
+          password_salt = @salt,
+          activo = 1,
+          intentos_fallidos = 0,
+          bloqueado_hasta = NULL
+        WHERE LOWER(nombre_usuario) = LOWER(@usuario)
+      , {
+        usuario,
+        hash,
+        salt
+      });
 
-    const rows = result.rowsAffected.reduce((a, b) => a + b, 0);
-    if (rows) {
-      updated += rows;
-      console.log(`OK  ${nombre_usuario.padEnd(16)} -> ${password}`);
-    } else {
-      console.log(`NO ENCONTRADO: ${nombre_usuario}`);
+      console.log(Actualizado: ${usuario});
+    }
+
+    console.log('');
+    console.log('Contraseñas de demostración actualizadas correctamente.');
+  } catch (err) {
+    console.error('ERROR:', err);
+    process.exitCode = 1;
+  } finally {
+    if (typeof close === 'function') {
+      await close();
     }
   }
-
-  console.log(`\nUsuarios actualizados: ${updated}`);
-  await pool.close();
 }
 
-main().catch(err => {
-  console.error('Error al reiniciar contraseñas:', err.message);
-  process.exitCode = 1;
-});
+main();
