@@ -4,7 +4,7 @@ const COOKIE_NAME = 'tallerpro_session';
 const MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
 // MODO PRUEBAS: permite entrar al sistema sin login cuando TEST_MODE=true.
-// Para producción, cambia TEST_MODE=false en el archivo .env.
+// Para una demostración real de roles, TEST_MODE debe estar en false.
 const TEST_MODE = String(process.env.TEST_MODE || '').toLowerCase() === 'true';
 const TEST_USER = {
   id_usuario: 0,
@@ -12,6 +12,27 @@ const TEST_USER = {
   email: 'pruebas@tallerpro.local',
   roles: [{ id_rol: 0, nombre: 'Administrador', descripcion: 'Acceso de pruebas' }]
 };
+
+function normalizeRole(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function userRoleNames(user) {
+  return Array.isArray(user?.roles)
+    ? user.roles.map(r => normalizeRole(r?.nombre || r)).filter(Boolean)
+    : [];
+}
+
+function hasRole(user, ...allowedRoles) {
+  const roles = userRoleNames(user);
+  if (roles.includes('administrador')) return true;
+  const allowed = allowedRoles.flat().map(normalizeRole);
+  return allowed.some(role => roles.includes(role));
+}
 
 function getSecret() {
   const raw = process.env.APP_SESSION_SECRET || `${process.env.DB_PASSWORD || 'tallerpro'}:tallerpro-session`;
@@ -90,7 +111,7 @@ function clearSessionCookie(res) {
 function requireAuth(req, res, next) {
   const user = getSessionUser(req);
   if (!user) {
-    if (req.path.startsWith('/api/')) {
+    if (req.originalUrl.startsWith('/api/')) {
       return res.status(401).json({ error: 'Sesión no válida o expirada' });
     }
     return res.redirect('/login');
@@ -101,6 +122,20 @@ function requireAuth(req, res, next) {
   next();
 }
 
+function requireRoles(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Sesión no válida o expirada' });
+    }
+    if (!hasRole(req.user, allowedRoles)) {
+      return res.status(403).json({
+        error: 'No tienes permisos para acceder a este módulo.'
+      });
+    }
+    next();
+  };
+}
+
 module.exports = {
   COOKIE_NAME,
   MAX_AGE_MS,
@@ -108,5 +143,9 @@ module.exports = {
   getSessionUser,
   setSessionCookie,
   clearSessionCookie,
-  requireAuth
+  requireAuth,
+  requireRoles,
+  hasRole,
+  userRoleNames,
+  normalizeRole
 };
