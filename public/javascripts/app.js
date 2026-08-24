@@ -1,5 +1,43 @@
 const state = { view:'dashboard', data:{}, catalogs:{}, search:'' };
 
+// Permisos de interfaz. El backend repite estas reglas, por lo que ocultar
+// opciones aquí es solo una mejora visual y no la única protección.
+const CURRENT_USER = window.TALLERPRO_USER || { roles: [] };
+function normalizeRole(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
+const CURRENT_ROLES = (CURRENT_USER.roles||[]).map(r=>normalizeRole(r.nombre||r));
+const VIEW_ROLES = {
+  dashboard: [],
+  clientes: ['Administrador','Supervisor','Recepcionista','Vendedor','Cajero'],
+  vehiculos: ['Administrador','Supervisor','Recepcionista','Mecánico'],
+  'admin-vehiculos': ['Administrador','Supervisor','Recepcionista'],
+  citas: ['Administrador','Supervisor','Recepcionista'],
+  recepciones: ['Administrador','Supervisor','Recepcionista','Mecánico'],
+  diagnosticos: ['Administrador','Supervisor','Mecánico'],
+  cotizaciones: ['Administrador','Supervisor','Recepcionista','Mecánico'],
+  ordenes: ['Administrador','Supervisor','Mecánico'],
+  empleados: ['Administrador'],
+  servicios: ['Administrador','Supervisor','Mecánico'],
+  inventario: ['Administrador','Supervisor','Encargado de inventario','Vendedor'],
+  proveedores: ['Administrador','Supervisor','Encargado de inventario'],
+  compras: ['Administrador','Supervisor','Encargado de inventario'],
+  ventas: ['Administrador','Supervisor','Vendedor','Cajero'],
+  garantias: ['Administrador','Supervisor','Recepcionista','Mecánico'],
+  facturas: ['Administrador','Supervisor','Cajero'],
+  usuarios: ['Administrador'],
+  reportes: ['Administrador','Supervisor'],
+  configuracion: ['Administrador']
+};
+function canAccessView(view){
+  if(CURRENT_ROLES.includes('administrador')) return true;
+  const allowed=(VIEW_ROLES[view]||[]).map(normalizeRole);
+  return allowed.length===0 || allowed.some(r=>CURRENT_ROLES.includes(r));
+}
+function applyMenuPermissions(){
+  document.querySelectorAll('#nav [data-view]').forEach(a=>{
+    if(!canAccessView(a.dataset.view)) a.remove();
+  });
+}
+
 const resources = {
   vehiculosCatalogo:{title:'Administrar Vehículos',singular:'vehículo',endpoint:'vehiculos-catalogo',fields:[
     ['id_marca','Marca','select',true],['id_modelo','Modelo','select',true],
@@ -135,14 +173,20 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const money=v=>'₡'+Number(v||0).toLocaleString('es-CR',{minimumFractionDigits:2});
 function toast(msg,type='ok'){let e=$('.toast');if(e)e.remove();e=document.createElement('div');e.className='toast '+type;e.textContent=msg;document.body.appendChild(e);setTimeout(()=>e.remove(),3000);}
 async function api(url,opts={}){const r=await fetch('/api/'+url,{headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});const text=await r.text();let data={};try{data=text?JSON.parse(text):{}}catch{data={error:text}}if(r.status===401){window.location.href='/login';throw new Error('Sesión expirada');}if(!r.ok)throw new Error(data.error||'Error de servidor');return data;}
+async function optionalApi(url, fallback=[]){
+  try{return await api(url);}catch(e){
+    if(/permisos/i.test(e.message)) return fallback;
+    throw e;
+  }
+}
 async function loadCatalogs(){
   state.catalogs=await api('catalogos');
-  state.catalogs.vehiculosCatalogo=await api('vehiculos-catalogo');
-  state.catalogs.categorias=await api('categorias');
-  state.catalogs.roles=await api('roles');
-  state.catalogs.categoriasServicio=await api('categorias-servicio');
-  state.data.recepciones=await api('recepciones');
-  state.data.diagnosticos=await api('diagnosticos');
+  state.catalogs.vehiculosCatalogo=await optionalApi('vehiculos-catalogo');
+  state.catalogs.categorias=await optionalApi('categorias');
+  state.catalogs.roles=await optionalApi('roles');
+  state.catalogs.categoriasServicio=await optionalApi('categorias-servicio');
+  state.data.recepciones=await optionalApi('recepciones');
+  state.data.diagnosticos=await optionalApi('diagnosticos');
 }
 function labelFor(field){return field[1];}
 function selectOptions(name,view,value){
@@ -348,7 +392,8 @@ async function saveForm(){
  });
  if(state.editing.id) await api(`${r.endpoint}/${state.editing.id}`,{method:'PUT',body:JSON.stringify(data)});
  else await api(r.endpoint,{method:'POST',body:JSON.stringify(data)});
- $('#modal').classList.remove('show');toast('Guardado correctamente');await render();
+ $('#modal').classList.remove('show');toast('Guardado correctamente');await applyMenuPermissions();
+render();
 }
 async function render(){
  const app=$('#app');app.innerHTML='<div class="card"><div class="empty-state"><h3>Cargando...</h3></div></div>';
@@ -381,7 +426,7 @@ document.addEventListener('click',async e=>{
      }
    }catch(err){toast(err.message,'error');}
  }
- const a=e.target.closest('[data-view]');if(a){e.preventDefault();state.view=a.dataset.view;state.search='';document.querySelectorAll('#nav a').forEach(x=>x.classList.toggle('active',x===a));return render();}
+ const a=e.target.closest('[data-view]');if(a){e.preventDefault();if(!canAccessView(a.dataset.view))return toast('No tienes permisos para acceder a este módulo.','error');state.view=a.dataset.view;state.search='';document.querySelectorAll('#nav a').forEach(x=>x.classList.toggle('active',x===a));return render();}
  const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
  try{
   if(action==='new')return openForm(state.view);
@@ -398,4 +443,5 @@ document.addEventListener('submit',async e=>{
 });
 document.addEventListener('input',e=>{if(e.target.id==='searchInput'){state.search=e.target.value;render();}});
 document.addEventListener('click',e=>{if(e.target.closest('.close-modal')||e.target===$('#modal'))$('#modal').classList.remove('show');});
+applyMenuPermissions();
 render();
