@@ -1,17 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { query } = require('./bd');
-const { getSessionUser } = require('./auth');
+const { getSessionUser, getUserPermissions, requireAuth } = require('./auth');
 
 router.get('/login', (req, res) => {
-  if (getSessionUser(req)) return res.redirect('/');
   res.render('login', { layout: false });
 });
 
-router.get('/', (req,res) => {
-  const user = getSessionUser(req);
-  if (!user) return res.redirect('/login');
-  res.render('index', { title: 'Dashboard', currentUser: user });
+router.get('/', requireAuth, async (req,res,next) => {
+  const user = req.user;
+  try {
+    const permissions = await getUserPermissions(user.id_usuario);
+    res.render('index', { title: 'Dashboard', currentUser: user, permissions });
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.get('/health', async (req,res) => {
