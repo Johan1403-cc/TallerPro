@@ -1,6 +1,7 @@
 const express = require('express');
 const crypto = require('crypto');
 const { getPool, query } = require('../bd');
+const { requirePermission } = require('../auth');
 
 const router = express.Router();
 
@@ -105,12 +106,12 @@ router.put('/:id', async (req, res, next) => {
 
 router.delete('/:id', async (req, res, next) => {
   try {
-    await query('DELETE FROM USUARIOS WHERE id_usuario=@id', { id: Number(req.params.id) });
+    await query('UPDATE USUARIOS SET activo=0 WHERE id_usuario=@id', { id: Number(req.params.id) });
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
 
-router.post('/:id/roles', async (req, res, next) => {
+router.post('/:id/roles', requirePermission('PERMISOS_MODIFICAR'), async (req, res, next) => {
   try {
     await query(`IF NOT EXISTS(SELECT 1 FROM USUARIO_ROL WHERE id_usuario=@id_usuario AND id_rol=@id_rol)
                  INSERT INTO USUARIO_ROL(id_usuario,id_rol) VALUES(@id_usuario,@id_rol)`, {
@@ -121,7 +122,7 @@ router.post('/:id/roles', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.delete('/:id/roles/:rol', async (req, res, next) => {
+router.delete('/:id/roles/:rol', requirePermission('PERMISOS_MODIFICAR'), async (req, res, next) => {
   try {
     await query('DELETE FROM USUARIO_ROL WHERE id_usuario=@id_usuario AND id_rol=@id_rol', {
       id_usuario: Number(req.params.id),

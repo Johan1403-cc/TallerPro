@@ -1,8 +1,16 @@
 const express = require('express');
 const { query, executeProcedure } = require('../bd');
 const { createCrudRouter } = require('./crud');
+const { requirePermission } = require('../auth');
 
 const router = express.Router();
+
+function approveOrderPermission(req,res,next){
+  if(String(req.body.estado||'').toUpperCase()==='APROBADA'){
+    return requirePermission('ORDENES_APROBAR')(req,res,next);
+  }
+  next();
+}
 
 router.get('/:id/detalle', async (req, res, next) => {
   try {
@@ -25,12 +33,12 @@ router.get('/:id/detalle', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post('/:id/estado', async (req, res, next) => {
+router.post('/:id/estado', requirePermission('ORDENES_MODIFICAR'), approveOrderPermission, async (req, res, next) => {
   try {
     const result = await executeProcedure('SP_CAMBIAR_ESTADO_ORDEN', {
       id_orden: Number(req.params.id),
       nuevo_estado: req.body.estado,
-      id_usuario: Number(req.body.id_usuario),
+      id_usuario: req.user.id_usuario,
       observacion: req.body.observacion || null
     });
     res.json({ ok: true, result: result.recordset });
@@ -43,7 +51,7 @@ router.post('/:id/repuesto', async (req, res, next) => {
       id_orden: Number(req.params.id),
       id_repuesto: Number(req.body.id_repuesto),
       cantidad: Number(req.body.cantidad),
-      id_usuario: Number(req.body.id_usuario)
+      id_usuario: req.user.id_usuario
     });
     res.json({ ok: true, result: result.recordset });
   } catch (e) { next(e); }
@@ -52,7 +60,7 @@ router.post('/:id/repuesto', async (req, res, next) => {
 router.use(createCrudRouter({
   table: 'ORDENES_TRABAJO',
   id: 'id_orden',
-  columns: ['id_vehiculo','id_empleado','estado'],
+  columns: ['id_vehiculo','id_empleado'],
   select: `SELECT o.id_orden AS id, o.id_vehiculo, v.placa, c.nombre AS cliente,
                   o.id_empleado, e.nombre AS empleado, o.estado, o.fecha_ingreso,
                   COALESCE((SELECT SUM(dos.subtotal) FROM DETALLE_ORDEN_SERVICIOS dos WHERE dos.id_orden=o.id_orden),0)

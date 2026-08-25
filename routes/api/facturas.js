@@ -1,8 +1,14 @@
 const express = require('express');
 const { executeProcedure } = require('../bd');
 const { createCrudRouter } = require('./crud');
+const { requirePermission } = require('../auth');
 
 const router = express.Router();
+
+router.use((req,res,next)=>{
+  if(req.method==='POST' && req.path==='/') req.body.id_usuario_emite=req.user.id_usuario;
+  next();
+});
 
 router.post('/:id/pagos', async (req, res, next) => {
   try {
@@ -11,18 +17,18 @@ router.post('/:id/pagos', async (req, res, next) => {
       monto: Number(req.body.monto),
       forma_pago: req.body.forma_pago || 'EFECTIVO',
       numero_referencia: req.body.numero_referencia || null,
-      id_usuario_recibe: Number(req.body.id_usuario_recibe),
+      id_usuario_recibe: req.user.id_usuario,
       observaciones: req.body.observaciones || null
     });
     res.json({ ok: true, result: result.recordset });
   } catch (e) { next(e); }
 });
 
-router.post('/:id/anular', async (req, res, next) => {
+router.post('/:id/anular', requirePermission('FACTURAS_ANULAR'), async (req, res, next) => {
   try {
     const result = await executeProcedure('SP_ANULAR_FACTURA', {
       id_factura: Number(req.params.id),
-      id_usuario: Number(req.body.id_usuario),
+      id_usuario: req.user.id_usuario,
       motivo: req.body.motivo || 'Anulación solicitada desde TallerPro'
     });
     res.json({ ok: true, result: result.recordset });
@@ -33,7 +39,7 @@ router.post('/desde-orden/:id', async (req, res, next) => {
   try {
     const result = await executeProcedure('SP_GENERAR_FACTURA_DESDE_ORDEN', {
       id_orden: Number(req.params.id),
-      id_usuario_emite: Number(req.body.id_usuario_emite),
+      id_usuario_emite: req.user.id_usuario,
       porcentaje_impuesto: Number(req.body.porcentaje_impuesto ?? 13)
     });
     res.json({ ok: true, result: result.recordset });

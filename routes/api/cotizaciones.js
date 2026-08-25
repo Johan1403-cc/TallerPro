@@ -1,8 +1,25 @@
 const express = require('express');
 const { getPool, query } = require('../bd');
 const { createCrudRouter } = require('./crud');
+const { requirePermission } = require('../auth');
 
 const router = express.Router();
+
+
+router.use((req,res,next)=>{
+  if(['POST','PUT','PATCH'].includes(req.method)){
+    const estado=String(req.body.estado||'').toUpperCase();
+    if(['APROBADA','APROBADA_PARCIAL','RECHAZADA'].includes(estado)){
+      req.body.id_usuario_decision=req.user.id_usuario;
+      req.body.fecha_decision=new Date().toISOString();
+    }else{
+      delete req.body.id_usuario_decision;
+      delete req.body.fecha_decision;
+    }
+  }
+  next();
+});
+
 
 router.get('/:id/servicios', async (req, res, next) => {
   try {
@@ -85,6 +102,23 @@ router.delete('/:id/repuestos/:detalle', async (req, res, next) => {
     res.json({ ok: true });
   } catch (e) { next(e); }
 });
+
+
+async function validateDiscount(req,res,next){
+  try{
+    if(!['POST','PUT','PATCH'].includes(req.method) || req.body.descuentos===undefined) return next();
+    const subtotal=Number(req.body.subtotal||0);
+    const descuento=Number(req.body.descuentos||0);
+    if(descuento<0 || subtotal<0) return res.status(400).json({error:'Subtotal y descuento no pueden ser negativos.'});
+    if(!subtotal || !descuento) return next();
+    const cfg=await query(`SELECT valor FROM CONFIGURACION_GENERAL WHERE clave='LIMITE_DESCUENTO_SIN_AUTORIZACION'`);
+    const limite=Number(cfg.recordset[0]?.valor||10);
+    const porcentaje=(descuento/subtotal)*100;
+    if(porcentaje<=limite) return next();
+    return requirePermission('DESCUENTOS_APLICAR')(req,res,next);
+  }catch(e){next(e);}
+}
+router.use(validateDiscount);
 
 router.use(createCrudRouter({
   table: 'COTIZACIONES',

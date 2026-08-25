@@ -4,11 +4,16 @@ const { createCrudRouter } = require('./crud');
 
 const router = express.Router();
 
+router.use((req,res,next)=>{
+  if(req.method==='POST' && req.path==='/') req.body.id_usuario=req.user.id_usuario;
+  next();
+});
+
 router.post('/:id/confirmar', async (req, res, next) => {
   try {
     const result = await executeProcedure('SP_CONFIRMAR_COMPRA', {
       id_compra: Number(req.params.id),
-      id_usuario: Number(req.body.id_usuario)
+      id_usuario: req.user.id_usuario
     });
     res.json({ ok: true, result: result.recordset });
   } catch (e) { next(e); }

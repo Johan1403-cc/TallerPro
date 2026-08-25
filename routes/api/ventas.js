@@ -1,14 +1,20 @@
 const express = require('express');
 const { executeProcedure } = require('../bd');
 const { createCrudRouter } = require('./crud');
+const { requirePermission } = require('../auth');
 
 const router = express.Router();
 
-router.post('/:id/confirmar', async (req, res, next) => {
+function allowNegativeStock(req,res,next) {
+  if (!req.body.forzar_negativo) return next();
+  return requirePermission('INVENTARIO_SALDO_NEGATIVO')(req,res,next);
+}
+
+router.post('/:id/confirmar', allowNegativeStock, async (req, res, next) => {
   try {
     const result = await executeProcedure('SP_CONFIRMAR_VENTA', {
       id_venta: Number(req.params.id),
-      id_usuario: Number(req.body.id_usuario),
+      id_usuario: req.user.id_usuario,
       forzar_negativo: req.body.forzar_negativo ? 1 : 0
     });
     res.json({ ok: true, result: result.recordset });
