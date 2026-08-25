@@ -153,7 +153,8 @@ const resources = {
   ]},
   permisos:{title:'Permisos',singular:'permiso',endpoint:'permisos',fields:[
     ['codigo','Código','text',true],['nombre','Nombre','text',true],
-    ['modulo','Módulo','text',true],['descripcion','Descripción','textarea']
+    ['modulo','Módulo','text',true],['descripcion','Descripción','textarea'],
+    ['role_ids','Roles asignados','multiselect']
   ]},
   garantias:{title:'Garantías',singular:'garantía',endpoint:'garantias',fields:[
     ['tipo_garantia','Tipo','select',true],['id_orden','Orden','number'],['id_venta','Venta','number'],
@@ -494,6 +495,9 @@ async function saveForm(){
  if(view==='usuarios'){
    data.role_ids=new FormData(f).getAll('role_ids').map(Number);
    if(!data.password)delete data.password;
+ }
+ if(view==='permisos'){
+   data.role_ids=new FormData(f).getAll('role_ids').map(Number);
  }
  const desiredOrderState=view==='ordenes'?data.estado:null;
  if(view==='ordenes') delete data.estado;
