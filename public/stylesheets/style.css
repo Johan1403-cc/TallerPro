@@ -23,3 +23,25 @@ button{cursor:pointer}
 .admin-mini-card .card-head{gap:12px}
 .admin-mini-card .card-head p{margin:4px 0 0;color:#7b8494;font-size:13px}
 @media(max-width:900px){.admin-grid{grid-template-columns:1fr}}
+
+/* Correcciones finales: notificaciones y reportes */
+.notification-panel{position:fixed;right:22px;top:70px;width:min(420px,calc(100vw - 30px));max-height:72vh;overflow:auto;background:#fff;border:1px solid #e1e5ea;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.18);z-index:5000}
+.notification-panel-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid #edf0f2;position:sticky;top:0;background:#fff;z-index:2}
+.notification-panel-head button{border:0;background:none;cursor:pointer;font-size:12px}
+.notification-item{padding:13px 16px;border-bottom:1px solid #f0f2f4;cursor:pointer}
+.notification-item.unread{background:#f5f8ff}
+.notification-item b{font-size:12px}
+.notification-item p{margin:5px 0;font-size:13px;line-height:1.4}
+.notification-item small{font-size:11px;opacity:.65}
+.notification-empty{padding:30px;text-align:center;opacity:.65}
+#notificationButton{position:relative}
+#notificationBadge{position:absolute;right:1px;top:1px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#d92828;color:#fff;font-size:9px;line-height:16px;font-style:normal}
+.report-section{margin-top:18px}
+.report-filters{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:0 0 18px}
+.report-filters label{display:flex;flex-direction:column;gap:5px;font-size:12px}
+.report-filters input{padding:9px 10px;border:1px solid #d9dee5;border-radius:8px}
+.bar-chart{display:flex;flex-direction:column;gap:9px;margin-top:12px}
+.bar-row{display:grid;grid-template-columns:minmax(90px,1fr) 2fr auto;gap:9px;align-items:center;font-size:11px}
+.bar-track{height:9px;border-radius:999px;background:#edf0f4;overflow:hidden}
+.bar-fill{height:100%;border-radius:999px;background:currentColor;opacity:.7}
+@media(max-width:700px){.bar-row{grid-template-columns:90px 1fr auto}.report-filters{align-items:stretch}.report-filters>*{width:100%}}
