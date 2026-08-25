@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{{title}} | TallerPro</title>
+  <link rel="stylesheet" href="/stylesheets/style.css">
+  <script>window.CSRF="{{csrfToken}}";</script>
+  <script src="/javascripts/app.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">🔧 TallerPro</div>
+    <div class="userbox">{{user.name}}<small>{{user.username}}</small></div>
+
+    <nav>
+      <a href="/dashboard">Panel</a>
+
+      {{#if (hasAnyPerm permissions "CLIENTES_CONSULTAR" "VEHICULOS_CONSULTAR" "CITAS_CONSULTAR" "RECEPCIONES_CONSULTAR" "DIAGNOSTICOS_CONSULTAR" "COTIZACIONES_CONSULTAR" "ORDENES_CONSULTAR")}}
+        <div class="nav-title">Operación</div>
+        {{#if (hasPerm permissions "CLIENTES_CONSULTAR")}}<a href="/modulo/clientes">Clientes</a>{{/if}}
+        {{#if (hasPerm permissions "VEHICULOS_CONSULTAR")}}<a href="/modulo/vehiculos">Vehículos</a>{{/if}}
+        {{#if (hasPerm permissions "CITAS_CONSULTAR")}}<a href="/modulo/citas">Citas</a>{{/if}}
+        {{#if (hasPerm permissions "RECEPCIONES_CONSULTAR")}}<a href="/modulo/recepciones">Recepciones</a>{{/if}}
+        {{#if (hasPerm permissions "DIAGNOSTICOS_CONSULTAR")}}<a href="/modulo/diagnosticos">Diagnósticos</a>{{/if}}
+        {{#if (hasPerm permissions "COTIZACIONES_CONSULTAR")}}<a href="/modulo/cotizaciones">Cotizaciones</a>{{/if}}
+        {{#if (hasPerm permissions "ORDENES_CONSULTAR")}}<a href="/modulo/ordenes">Órdenes</a>{{/if}}
+      {{/if}}
+
+      {{#if (hasAnyPerm permissions "SERVICIOS_CONSULTAR" "PRODUCTOS_CONSULTAR" "INVENTARIO_CONSULTAR" "PROVEEDORES_CONSULTAR" "COMPRAS_CONSULTAR" "VENTAS_CONSULTAR" "FACTURAS_CONSULTAR" "PAGOS_CONSULTAR" "GARANTIAS_CONSULTAR")}}
+        <div class="nav-title">Comercial</div>
+        {{#if (hasPerm permissions "SERVICIOS_CONSULTAR")}}<a href="/modulo/servicios">Servicios</a>{{/if}}
+        {{#if (hasPerm permissions "PRODUCTOS_CONSULTAR")}}<a href="/modulo/productos">Productos</a>{{/if}}
+        {{#if (hasPerm permissions "INVENTARIO_CONSULTAR")}}<a href="/inventario">Inventario</a>{{/if}}
+        {{#if (hasPerm permissions "PROVEEDORES_CONSULTAR")}}<a href="/modulo/proveedores">Proveedores</a>{{/if}}
+        {{#if (hasPerm permissions "COMPRAS_CONSULTAR")}}<a href="/compras">Compras</a>{{/if}}
+        {{#if (hasPerm permissions "VENTAS_CONSULTAR")}}<a href="/ventas">Ventas</a>{{/if}}
+        {{#if (hasPerm permissions "FACTURAS_CONSULTAR")}}<a href="/facturacion">Facturación</a>{{/if}}
+        {{#if (hasPerm permissions "PAGOS_CONSULTAR")}}<a href="/pagos">Pagos</a>{{/if}}
+        {{#if (hasPerm permissions "GARANTIAS_CONSULTAR")}}<a href="/modulo/garantias">Garantías</a>{{/if}}
+      {{/if}}
+
+      {{#if (hasAnyPerm permissions "EMPLEADOS_CONSULTAR" "USUARIOS_ADMINISTRAR" "REPORTES_CONSULTAR" "AUDITORIA_CONSULTAR" "CONFIGURACION_CONSULTAR")}}
+        <div class="nav-title">Administración</div>
+        {{#if (hasPerm permissions "EMPLEADOS_CONSULTAR")}}<a href="/modulo/empleados">Empleados</a>{{/if}}
+        {{#if (hasPerm permissions "USUARIOS_ADMINISTRAR")}}<a href="/usuarios">Usuarios</a>{{/if}}
+        {{#if (hasPerm permissions "USUARIOS_ADMINISTRAR")}}<a href="/roles">Roles</a>{{/if}}
+        {{#if (hasPerm permissions "USUARIOS_ADMINISTRAR")}}<a href="/permisos">Permisos</a>{{/if}}
+        {{#if (hasPerm permissions "REPORTES_CONSULTAR")}}<a href="/reportes">Reportes</a>{{/if}}
+        <a href="/notificaciones">Notificaciones</a>
+        {{#if (hasPerm permissions "AUDITORIA_CONSULTAR")}}<a href="/auditoria">Auditoría</a>{{/if}}
+        {{#if (hasPerm permissions "CONFIGURACION_CONSULTAR")}}<a href="/modulo/configuracion">Configuración</a>{{/if}}
+      {{else}}
+        <div class="nav-title">Administración</div>
+        <a href="/notificaciones">Notificaciones</a>
+      {{/if}}
+
+      {{#if (hasPerm permissions "CATALOGOS_CONSULTAR")}}
+        <div class="nav-title">Catálogos</div>
+        <a href="/modulo/marcas">Marcas</a>
+        <a href="/modulo/modelos">Modelos</a>
+        <a href="/modulo/tiposvehiculo">Tipos</a>
+        <a href="/modulo/combustibles">Combustibles</a>
+        <a href="/modulo/categoriasvehiculo">Categorías</a>
+      {{/if}}
+    </nav>
+
+    <button id="logout" class="logout">Cerrar sesión</button>
+  </aside>
+
+  <main class="main">
+    <header>
+      <button class="menu" onclick="document.body.classList.toggle('nav-open')">☰</button>
+      <h1>{{title}}</h1>
+    </header>
+    <section class="content">{{{body}}}</section>
+  </main>
+</body>
+</html>

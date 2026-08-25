@@ -1,0 +1,71 @@
+<div class="panel">
+  <h2>Venta directa de productos</h2>
+  <form id="ventaForm">
+    <div class="form-grid">
+      <label>Cliente (opcional)
+        <select name="ClienteId" id="clienteVenta">
+          <option value="">Consumidor final / sin cliente</option>
+        </select>
+      </label>
+      <label>Vendedor
+        <select name="VendedorId" id="vendedorVenta" required>
+          <option value="">Seleccione un vendedor...</option>
+        </select>
+      </label>
+      <label>Cajero
+        <select name="CajeroId" id="cajeroVenta" required>
+          <option value="">Seleccione un cajero...</option>
+        </select>
+      </label>
+      <label>Forma de pago
+        <select name="FormaPago">
+          <option>EFECTIVO</option>
+          <option>TARJETA</option>
+          <option>TRANSFERENCIA</option>
+          <option>SINPE MOVIL</option>
+          <option>CREDITO</option>
+        </select>
+      </label>
+    </div>
+
+    <h3>Detalle</h3>
+    <div class="line line-head" style="font-weight:600;gap:10px">
+      <span>Producto / repuesto</span><span>Cantidad</span><span>Precio unitario</span><span>Impuesto %</span><span>Descuento</span><span></span>
+    </div>
+    <div id="items"></div>
+    <button type="button" id="btnAgregarProducto">+ Agregar producto</button>
+    <div class="dialog-actions"><button class="primary">Confirmar venta</button></div>
+  </form>
+  <div id="msg" class="message"></div>
+</div>
+
+<div class="panel">
+  <h2>Ventas registradas</h2>
+  <div class="table-wrap"><table id="qtable"></table></div>
+</div>
+<script src="/javascripts/querytable.js"></script>
+<script>
+let productosVenta=[];
+const money=n=>new Intl.NumberFormat('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n||0));
+
+function opcionesProductos(selected=''){
+  return `<option value="">Seleccione producto...</option>`+productosVenta.map(p=>`<option value="${p.ProductoId}" ${String(p.ProductoId)===String(selected)?'selected':''}>${p.CodigoInterno} — ${p.Nombre} (${p.TipoProducto}) — Stock: ${Number(p.ExistenciaActual)}</option>`).join('');
+}
+function addItem(){
+  const row=document.createElement('div');row.className='line';
+  row.innerHTML=`<select class="pid" required>${opcionesProductos()}</select><input placeholder="Cantidad" type="number" min="0.01" step="0.01" class="qty" required><input placeholder="Precio unitario" type="text" class="price" readonly><input placeholder="Impuesto %" type="text" class="tax" readonly><input placeholder="Descuento" type="number" min="0" step="0.01" class="disc" value="0"><button type="button" class="remove">×</button>`;
+  const sel=row.querySelector('.pid'),price=row.querySelector('.price'),tax=row.querySelector('.tax');
+  sel.addEventListener('change',()=>{const p=productosVenta.find(x=>String(x.ProductoId)===sel.value);price.value=p?money(p.PrecioVenta):'';tax.value=p?Number(p.PorcentajeImpuesto):'';});
+  row.querySelector('.remove').onclick=()=>row.remove();items.appendChild(row);
+}
+async function cargarVentaForm(){
+  const j=await api('/api/query/ventas-form');if(!j.ok)throw new Error(j.message||'No fue posible cargar el formulario.');
+  clienteVenta.innerHTML='<option value="">Consumidor final / sin cliente</option>'+j.clientes.map(c=>`<option value="${c.ClienteId}">${c.NombreRazonSocial} — ${c.Identificacion}</option>`).join('');
+  vendedorVenta.innerHTML='<option value="">Seleccione un vendedor...</option>'+j.vendedores.map(x=>`<option value="${x.EmpleadoId}">${x.NombreCompleto}</option>`).join('');
+  cajeroVenta.innerHTML='<option value="">Seleccione un cajero...</option>'+j.cajeros.map(x=>`<option value="${x.EmpleadoId}">${x.NombreCompleto}</option>`).join('');
+  productosVenta=j.productos||[];items.innerHTML='';addItem();
+}
+btnAgregarProducto.onclick=addItem;
+ventaForm.onsubmit=async e=>{try{e.preventDefault();let b=Object.fromEntries(new FormData(e.target));b.ClienteId=b.ClienteId||null;b.detalles=[...document.querySelectorAll('#items .line')].map(x=>({ProductoId:+x.querySelector('.pid').value,Cantidad:+x.querySelector('.qty').value,Descuento:+x.querySelector('.disc').value||0}));if(!b.detalles.length)throw new Error('Agregue al menos un producto.');let j=await api('/api/ops/ventas/confirmar',{method:'POST',body:JSON.stringify(b)});msg.textContent=j.message||JSON.stringify(j.data||j);if(j.ok){ventaForm.reset();items.innerHTML='';addItem();await loadQ('ventas');}}catch(err){alert(err.message)}};
+addEventListener('DOMContentLoaded',async()=>{try{await cargarVentaForm();await loadQ('ventas');}catch(e){alert(e.message)}});
+</script>

@@ -1,0 +1,23 @@
+<div class="panel">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0 0 6px">Roles del sistema</h2>
+      <p style="margin:0;color:#66717e">Cree los roles que podrán asignarse a los usuarios.</p>
+    </div>
+    <button class="primary" id="btnNuevoRol">+ Nuevo rol</button>
+  </div>
+  <div id="rolesList" class="role-list"></div>
+</div>
+
+<dialog id="dlgRol">
+  <form id="formRol">
+    <h2>Nuevo rol</h2>
+    <label>Nombre del rol *</label>
+    <input id="rolNombre" maxlength="80" required placeholder="Ej. Jefe de taller">
+    <div class="dialog-actions">
+      <button type="button" id="cancelRol">Cancelar</button>
+      <button class="primary" type="submit">Guardar rol</button>
+    </div>
+  </form>
+</dialog>
+<script src="/javascripts/roles.js"></script>

@@ -1,0 +1,143 @@
+<div class="panel report-controls">
+  <div class="report-headline">
+    <div>
+      <h2>Reportes automáticos</h2>
+      <p>Los resultados se calculan directamente con la información actual de TallerPro. Se actualizan al cambiar filtros y cada 30 segundos mientras esta pantalla esté abierta.</p>
+    </div>
+    <span id="autoBadge" class="status-badge">Actualización automática</span>
+  </div>
+
+  <div class="form-grid report-grid">
+    <label>Reporte
+      <select id="tipo">
+        <option value="trabajos">Trabajos realizados por período</option>
+        <option value="trabajos_mecanico">Trabajos realizados por mecánico</option>
+        <option value="horas_empleado">Horas trabajadas por empleado</option>
+        <option value="servicios">Servicios más solicitados</option>
+        <option value="vehiculos">Vehículos atendidos por marca y modelo</option>
+        <option value="clientes_visitas">Clientes con mayor cantidad de visitas</option>
+        <option value="clientes_facturacion">Clientes con mayor facturación</option>
+        <option value="ventas">Ventas por período</option>
+        <option value="ventas_vendedor">Ventas por vendedor</option>
+        <option value="ventas_categoria">Ventas por categoría de producto</option>
+        <option value="productos_vendidos">Productos más vendidos</option>
+        <option value="stock">Productos con poca existencia</option>
+        <option value="sin_movimiento">Productos sin movimiento</option>
+        <option value="compras">Compras por proveedor</option>
+        <option value="ingresos_servicios">Ingresos por servicios</option>
+        <option value="ingresos_productos">Ingresos por venta de productos</option>
+        <option value="pendientes">Facturas pendientes de pago</option>
+        <option value="utilidad_producto">Utilidad estimada por producto</option>
+        <option value="utilidad_orden">Utilidad estimada por orden de trabajo</option>
+        <option value="ordenes_estado">Órdenes pendientes, atrasadas y finalizadas</option>
+        <option value="historial_vehiculo">Historial completo de un vehículo</option>
+      </select>
+    </label>
+    <label data-filter="fecha">Desde<input id="desde" type="date"></label>
+    <label data-filter="fecha">Hasta<input id="hasta" type="date"></label>
+    <label data-filter="estado">Estado<select id="estado"><option value="">Todos</option></select></label>
+    <label data-filter="cliente">Cliente<select id="clienteId"><option value="0">Todos los clientes</option></select></label>
+    <label data-filter="empleado">Empleado<select id="empleadoId"><option value="0">Todos los empleados</option></select></label>
+    <label data-filter="producto">Producto / repuesto<select id="productoId"><option value="0">Todos los productos</option></select></label>
+    <label data-filter="servicio">Servicio<select id="servicioId"><option value="0">Todos los servicios</option></select></label>
+    <label data-filter="vehiculo">Vehículo<select id="vehiculoId"><option value="0">Todos los vehículos</option></select></label>
+    <label data-filter="proveedor">Proveedor<select id="proveedorId"><option value="0">Todos los proveedores</option></select></label>
+  </div>
+
+  <div class="report-actions">
+    <button class="primary" type="button" onclick="runReport()">Actualizar ahora</button>
+    <button type="button" onclick="clearReportFilters()">Limpiar filtros</button>
+    <button type="button" onclick="window.print()">Imprimir</button>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="report-result-head">
+    <div>
+      <h2 id="reportTitle">Resultado</h2>
+      <small id="reportMeta"></small>
+    </div>
+    <div id="reportCount" class="report-count"></div>
+  </div>
+  <div id="reportChart" class="report-chart"></div>
+  <div class="table-wrap"><table id="qtable"></table></div>
+</div>
+
+<script src="/javascripts/querytable.js"></script>
+<script>
+const reportConfig={
+ trabajos:{filters:['fecha','estado','cliente','vehiculo'],states:['REGISTRADA','PENDIENTE DE APROBACION','APROBADA','EN PROCESO','EN ESPERA DE REPUESTOS','SUSPENDIDA','FINALIZADA','FACTURADA','ENTREGADA','CANCELADA']},
+ trabajos_mecanico:{filters:['fecha','estado','cliente','empleado'],states:['REGISTRADA','APROBADA','EN PROCESO','EN ESPERA DE REPUESTOS','SUSPENDIDA','FINALIZADA','FACTURADA','ENTREGADA']},
+ horas_empleado:{filters:['fecha','empleado']},
+ servicios:{filters:['fecha','estado','servicio'],states:['APROBADA','EN PROCESO','FINALIZADA','FACTURADA','ENTREGADA']},
+ vehiculos:{filters:['fecha','estado','vehiculo'],states:['APROBADA','EN PROCESO','FINALIZADA','FACTURADA','ENTREGADA']},
+ clientes_visitas:{filters:['fecha','cliente']},
+ clientes_facturacion:{filters:['fecha','estado','cliente'],states:['PENDIENTE','PARCIALMENTE PAGADA','PAGADA','REEMBOLSADA']},
+ ventas:{filters:['fecha','estado','cliente'],states:['BORRADOR','CONFIRMADA','ANULADA','DEVUELTA']},
+ ventas_vendedor:{filters:['fecha','estado','empleado'],states:['BORRADOR','CONFIRMADA','ANULADA','DEVUELTA']},
+ ventas_categoria:{filters:['fecha','producto']},
+ productos_vendidos:{filters:['fecha','producto']},
+ stock:{filters:['producto']},
+ sin_movimiento:{filters:['fecha','producto']},
+ compras:{filters:['fecha','estado','proveedor'],states:['BORRADOR','CONFIRMADA','ANULADA','PARCIALMENTE PAGADA','PAGADA']},
+ ingresos_servicios:{filters:['fecha','cliente','servicio']},
+ ingresos_productos:{filters:['fecha','cliente','producto']},
+ pendientes:{filters:['fecha','estado','cliente'],states:['PENDIENTE','PARCIALMENTE PAGADA']},
+ utilidad_producto:{filters:['fecha','producto']},
+ utilidad_orden:{filters:['fecha','estado','cliente','vehiculo'],states:['FINALIZADA','FACTURADA','ENTREGADA']},
+ ordenes_estado:{filters:['fecha','estado','cliente','vehiculo'],states:['REGISTRADA','PENDIENTE DE APROBACION','APROBADA','EN PROCESO','EN ESPERA DE REPUESTOS','SUSPENDIDA','FINALIZADA','FACTURADA','ENTREGADA','CANCELADA']},
+ historial_vehiculo:{filters:['fecha','vehiculo','producto','servicio']}
+};
+const chartConfig={
+ trabajos_mecanico:['Mecanico','Trabajos'],horas_empleado:['Empleado','Horas'],servicios:['Servicio','Cantidad'],vehiculos:['Modelo','Atenciones'],
+ clientes_visitas:['Cliente','Visitas'],clientes_facturacion:['Cliente','Facturacion'],ventas:['Fecha','Total'],ventas_vendedor:['Vendedor','Total'],
+ ventas_categoria:['Categoria','Total'],productos_vendidos:['Producto','Cantidad'],compras:['Proveedor','Total'],ingresos_servicios:['Servicio','Ingreso'],
+ ingresos_productos:['Producto','Ingreso'],utilidad_producto:['Producto','UtilidadEstimada'],utilidad_orden:['NumeroOrden','UtilidadEstimada']
+};
+let reportTimer,debounceTimer;
+function money(v){return Number(v||0).toLocaleString('es-CR',{maximumFractionDigits:2});}
+function setOptions(el,rows,valueKey,label){el.innerHTML='<option value="0">Todos</option>'+rows.map(x=>`<option value="${x[valueKey]}">${label(x)}</option>`).join('');}
+async function loadReportCatalogs(){
+ const j=await api('/api/query/reportes-form');
+ setOptions(clienteId,j.clientes,'ClienteId',x=>x.Nombre);
+ setOptions(empleadoId,j.empleados,'EmpleadoId',x=>x.Nombre);
+ setOptions(productoId,j.productos,'ProductoId',x=>`${x.CodigoInterno} — ${x.Nombre} (${x.TipoProducto})`);
+ setOptions(servicioId,j.servicios,'ServicioId',x=>`${x.Codigo} — ${x.Nombre}`);
+ setOptions(vehiculoId,j.vehiculos,'VehiculoId',x=>`${x.Placa} — ${x.Marca} ${x.Modelo} — ${x.Cliente}`);
+ setOptions(proveedorId,j.proveedores,'ProveedorId',x=>x.Nombre);
+}
+function updateFilters(){
+ const cfg=reportConfig[tipo.value]||{filters:[]};
+ document.querySelectorAll('[data-filter]').forEach(x=>x.style.display=cfg.filters.includes(x.dataset.filter)?'flex':'none');
+ estado.innerHTML='<option value="">Todos</option>'+((cfg.states||[]).map(s=>`<option value="${s}">${s}</option>`).join(''));
+ if(tipo.value==='historial_vehiculo') vehiculoId.options[0].textContent='Seleccione un vehículo'; else vehiculoId.options[0].textContent='Todos los vehículos';
+}
+function setDefaultDates(){const d=new Date(),first=new Date(d.getFullYear(),d.getMonth(),1);desde.value=first.toISOString().slice(0,10);hasta.value=d.toISOString().slice(0,10);}
+function clearReportFilters(){setDefaultDates();estado.value='';clienteId.value='0';empleadoId.value='0';productoId.value='0';servicioId.value='0';vehiculoId.value='0';proveedorId.value='0';runReport();}
+function drawChart(rows){
+ reportChart.innerHTML='';const cfg=chartConfig[tipo.value];if(!cfg||!rows.length)return;
+ const [labelKey,valueKey]=cfg, vals=rows.slice(0,15).map(r=>Number(r[valueKey]||0)),max=Math.max(...vals,1);
+ reportChart.innerHTML='<h3>Gráfico</h3>'+rows.slice(0,15).map((r,i)=>`<div class="rbar"><span title="${String(r[labelKey]??'')}">${String(r[labelKey]??'')}</span><i style="width:${Math.max(2,vals[i]/max*100)}%"></i><b>${money(vals[i])}</b></div>`).join('');
+}
+async function runReport(){
+ try{
+  if(tipo.value==='historial_vehiculo'&&vehiculoId.value==='0'){renderTable(qtable,[]);reportChart.innerHTML='';reportTitle.textContent=tipo.options[tipo.selectedIndex].text;reportMeta.textContent='Seleccione un vehículo para consultar su historial completo.';reportCount.textContent='';return;}
+  const ps=new URLSearchParams({desde:desde.value||'2000-01-01',hasta:hasta.value||'2099-12-31',estado:estado.value||'',clienteId:clienteId.value||0,empleadoId:empleadoId.value||0,productoId:productoId.value||0,servicioId:servicioId.value||0,vehiculoId:vehiculoId.value||0,proveedorId:proveedorId.value||0});
+  autoBadge.textContent='Actualizando...';
+  const j=await api(`/api/query/reportes/${tipo.value}?${ps}`),rows=j.rows||[];
+  renderTable(qtable,rows);drawChart(rows);
+  reportTitle.textContent=tipo.options[tipo.selectedIndex].text;
+  reportCount.textContent=`${rows.length} resultado${rows.length===1?'':'s'}`;
+  reportMeta.textContent=`Actualizado: ${new Date(j.generadoEn||Date.now()).toLocaleString('es-CR')}`;
+  autoBadge.textContent='Actualización automática';
+ }catch(e){autoBadge.textContent='Error al actualizar';alert(e.message);}
+}
+function scheduleReport(){clearTimeout(debounceTimer);debounceTimer=setTimeout(runReport,300);}
+addEventListener('DOMContentLoaded',async()=>{
+ setDefaultDates();await loadReportCatalogs();updateFilters();await runReport();
+ tipo.addEventListener('change',()=>{updateFilters();scheduleReport();});
+ document.querySelectorAll('.report-controls input,.report-controls select').forEach(el=>{if(el!==tipo)el.addEventListener('change',scheduleReport);});
+ reportTimer=setInterval(runReport,30000);
+});
+addEventListener('beforeunload',()=>clearInterval(reportTimer));
+</script>

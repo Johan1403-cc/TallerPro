@@ -1,0 +1,111 @@
+<div class="panel">
+  <h2>Registrar garantía</h2>
+  <p class="muted">Solo se muestran órdenes de trabajo y ventas cuya factura esté completamente pagada.</p>
+  <form id="warrantyForm">
+    <div class="form-grid">
+      <label>Origen *
+        <select id="OrigenTipo" required>
+          <option value="">Seleccione...</option>
+          <option value="ORDEN">Orden de trabajo</option>
+          <option value="VENTA">Venta directa</option>
+        </select>
+      </label>
+      <label class="wide">Orden / venta disponible *
+        <select id="OrigenId" required disabled><option value="">Seleccione primero el origen...</option></select>
+      </label>
+      <label>Tipo de cobertura *
+        <select id="TipoCobertura" required disabled>
+          <option value="">Seleccione...</option>
+          <option value="PRODUCTO">Producto</option>
+          <option value="SERVICIO Y REPUESTO">Servicio y repuesto</option>
+        </select>
+      </label>
+      <label id="productoWrap">Producto / repuesto *
+        <select id="ProductoId" disabled><option value="">Seleccione...</option></select>
+      </label>
+      <label id="servicioWrap" style="display:none">Servicio *
+        <select id="ServicioId" disabled><option value="">Seleccione...</option></select>
+      </label>
+      <label>Fecha de inicio *
+        <input id="FechaInicio" type="date" required>
+      </label>
+      <label>Fecha de vencimiento *
+        <input id="FechaVencimiento" type="date" required>
+      </label>
+      <label>Estado *
+        <select id="Estado" required>
+          <option value="ACTIVA">ACTIVA</option>
+          <option value="INACTIVA">INACTIVA</option>
+        </select>
+      </label>
+      <label class="wide">Condiciones
+        <textarea id="Condiciones" rows="3" maxlength="1500" placeholder="Condiciones de la garantía"></textarea>
+      </label>
+      <label class="wide">Observaciones
+        <textarea id="Observaciones" rows="3" maxlength="1000" placeholder="Observaciones adicionales"></textarea>
+      </label>
+    </div>
+    <div style="margin-top:16px"><button class="primary">Guardar garantía</button></div>
+  </form>
+  <div id="msg" class="message"></div>
+</div>
+
+<div class="panel">
+  <h2>Garantías registradas</h2>
+  <div class="toolbar"><input id="search" placeholder="Buscar por orden, venta, cliente, placa, producto o servicio..."></div>
+  <div class="table-wrap"><table id="wtable"></table></div>
+</div>
+
+<script>
+let ordenes=[],ventas=[],productos=[],servicios=[];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function setOptions(el,rows,id,label){el.innerHTML='<option value="">Seleccione...</option>'+rows.map(x=>`<option value="${x[id]}">${esc(x[label])}</option>`).join('');}
+async function loadForm(){
+  const j=await api('/api/query/garantias-form'); if(!j.ok)throw new Error(j.message||'No se pudo cargar Garantías.');
+  ordenes=j.ordenes||[]; ventas=j.ventas||[];
+}
+async function syncOrigin(){
+  const tipo=OrigenTipo.value; OrigenId.disabled=!tipo; TipoCobertura.disabled=true; ProductoId.disabled=true; ServicioId.disabled=true;
+  productos=[];servicios=[]; ProductoId.innerHTML='<option value="">Seleccione...</option>'; ServicioId.innerHTML='<option value="">Seleccione...</option>';
+  if(!tipo){OrigenId.innerHTML='<option value="">Seleccione primero el origen...</option>';return;}
+  const rows=tipo==='ORDEN'?ordenes:ventas; setOptions(OrigenId,rows,tipo==='ORDEN'?'OrdenTrabajoId':'VentaId','Etiqueta');
+  if(tipo==='VENTA'){
+    TipoCobertura.innerHTML='<option value="PRODUCTO">Producto</option>';
+    TipoCobertura.value='PRODUCTO';
+  }else{
+    TipoCobertura.innerHTML='<option value="">Seleccione...</option><option value="PRODUCTO">Producto</option><option value="SERVICIO Y REPUESTO">Servicio y repuesto</option>';
+  }
+}
+async function loadDetail(){
+  const tipo=OrigenTipo.value,id=OrigenId.value;if(!tipo||!id)return;
+  const j=await api(`/api/query/garantias-detalle/${tipo.toLowerCase()}/${id}`);if(!j.ok)return alert(j.message||'No se pudo cargar el detalle.');
+  productos=j.productos||[];servicios=j.servicios||[];
+  setOptions(ProductoId,productos,'ProductoId','Etiqueta');setOptions(ServicioId,servicios,'ServicioId','Etiqueta');
+  TipoCobertura.disabled=false; syncCoverage();
+}
+function syncCoverage(){
+  const c=TipoCobertura.value,t=OrigenTipo.value;
+  servicioWrap.style.display=c==='SERVICIO Y REPUESTO'?'':'none';
+  ProductoId.disabled=!c; ServicioId.disabled=c!=='SERVICIO Y REPUESTO';
+  if(t==='VENTA'&&c!=='PRODUCTO'){TipoCobertura.value='PRODUCTO';servicioWrap.style.display='none';ServicioId.disabled=true;}
+}
+async function loadList(){
+  const j=await api('/api/query/garantias-list?q='+encodeURIComponent(search.value||'')); if(!j.ok)throw new Error(j.message||'No se pudieron cargar garantías.');
+  const rows=j.rows||[];
+  wtable.innerHTML='<thead><tr><th>ID</th><th>Origen</th><th>Factura</th><th>Cliente</th><th>Cobertura</th><th>Producto / repuesto</th><th>Servicio</th><th>Inicio</th><th>Vencimiento</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>'+rows.map(r=>`<tr><td>${r.GarantiaId}</td><td>${esc(r.Origen)}</td><td>${esc(r.NumeroFactura||'')}</td><td>${esc(r.Cliente||'')}</td><td>${esc(r.TipoCobertura)}</td><td>${esc(r.Producto||'')}</td><td>${esc(r.Servicio||'')}</td><td>${esc(String(r.FechaInicio||'').slice(0,10))}</td><td>${esc(String(r.FechaVencimiento||'').slice(0,10))}</td><td>${esc(r.Estado)}</td><td><button type="button" onclick="toggleWarranty(${r.GarantiaId},'${r.Estado}')">${r.Estado==='ACTIVA'?'Desactivar':'Activar'}</button></td></tr>`).join('')+'</tbody>';
+}
+async function toggleWarranty(id,estado){
+  const nuevo=estado==='ACTIVA'?'INACTIVA':'ACTIVA';const j=await api('/api/ops/garantias/'+id+'/estado',{method:'PATCH',body:JSON.stringify({Estado:nuevo})});if(!j.ok)return alert(j.message);await loadList();
+}
+OrigenTipo.onchange=syncOrigin;OrigenId.onchange=loadDetail;TipoCobertura.onchange=syncCoverage;search.oninput=()=>{clearTimeout(window._ws);window._ws=setTimeout(loadList,250)};
+warrantyForm.onsubmit=async e=>{
+  e.preventDefault();msg.textContent='';
+  const tipo=OrigenTipo.value,cob=TipoCobertura.value;
+  if(!tipo||!OrigenId.value||!cob)return alert('Complete origen y tipo de cobertura.');
+  if(!ProductoId.value)return alert('Seleccione el producto o repuesto cubierto.');
+  if(cob==='SERVICIO Y REPUESTO'&&!ServicioId.value)return alert('Seleccione también el servicio cubierto.');
+  const body={OrigenTipo:tipo,OrigenId:Number(OrigenId.value),TipoCobertura:cob,ProductoId:Number(ProductoId.value),ServicioId:ServicioId.value?Number(ServicioId.value):null,FechaInicio:FechaInicio.value,FechaVencimiento:FechaVencimiento.value,Condiciones:Condiciones.value,Estado:Estado.value,Observaciones:Observaciones.value};
+  const j=await api('/api/ops/garantias',{method:'POST',body:JSON.stringify(body)});msg.textContent=j.message||'';if(j.ok){warrantyForm.reset();OrigenId.innerHTML='<option value="">Seleccione primero el origen...</option>';OrigenId.disabled=true;TipoCobertura.disabled=true;ProductoId.disabled=true;ServicioId.disabled=true;servicioWrap.style.display='none';await loadForm();await loadList();}
+};
+addEventListener('DOMContentLoaded',async()=>{try{await loadForm();await loadList()}catch(e){alert(e.message)}});
+</script>

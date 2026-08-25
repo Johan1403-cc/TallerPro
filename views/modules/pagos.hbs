@@ -1,0 +1,117 @@
+<div class="panel">
+  <h2>Registrar pago</h2>
+  <form id="payForm">
+    <div class="form-grid">
+      <label class="wide">Factura (puede seleccionarla o escribir el ID)
+        <input id="FacturaId" name="FacturaId" list="facturasList" required placeholder="Seleccione una factura o escriba su ID">
+        <datalist id="facturasList"></datalist>
+      </label>
+      <label>Total factura
+        <input id="TotalFactura" readonly>
+      </label>
+      <label>Saldo pendiente
+        <input id="SaldoPendiente" readonly>
+      </label>
+      <label>Tipo de pago
+        <select id="TipoPago">
+          <option value="COMPLETO">Pago completo</option>
+          <option value="PARCIAL">Pago parcial</option>
+        </select>
+      </label>
+      <label id="montoSimpleWrap">Monto a pagar
+        <input id="MontoSimple" type="number" min="0.01" step="0.01">
+      </label>
+      <label>Forma de pago
+        <select id="FormaPagoSimple"></select>
+      </label>
+      <label class="wide">Observaciones
+        <input id="Observaciones" name="Observaciones" maxlength="500" placeholder="Observaciones del pago">
+      </label>
+    </div>
+
+    <div id="combBox" style="display:none;margin-top:16px">
+      <h3>Combinación de formas de pago</h3>
+      <p class="muted">Agregue las formas necesarias. La suma no puede superar el saldo pendiente.</p>
+      <div id="payRows"></div>
+      <button type="button" id="addPay" class="secondary">+ Agregar forma de pago</button>
+      <div style="margin-top:10px"><strong>Total combinado:</strong> ₡<span id="combinedTotal">0.00</span></div>
+    </div>
+
+    <div style="margin-top:16px">
+      <button class="primary">Registrar pago</button>
+    </div>
+  </form>
+  <div id="msg" class="message"></div>
+  <p class="muted" style="margin-top:8px">El número de referencia se genera automáticamente con el patrón PAG-00000001, PAG-00000002, etc.</p>
+</div>
+
+<div class="panel"><h2>Pagos registrados</h2><div class="table-wrap"><table id="qtable"></table></div></div>
+<script src="/javascripts/querytable.js"></script>
+<script>
+let facturas=[],formas=[];
+const money=n=>Number(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function selectedFactura(){return facturas.find(f=>String(f.FacturaId)===String(FacturaId.value).trim());}
+function optionsFormas(includeCombo=true){
+  let h='<option value="">Seleccione...</option>';
+  for(const f of formas)h+=`<option value="${f.FormaPagoId}">${f.Nombre}</option>`;
+  if(includeCombo)h+='<option value="COMBINACION">COMBINACIÓN DE VARIAS FORMAS DE PAGO</option>';
+  return h;
+}
+function syncFactura(){
+  const f=selectedFactura();
+  TotalFactura.value=f?money(f.Total):'';
+  SaldoPendiente.value=f?money(f.SaldoPendiente):'';
+  if(f && TipoPago.value==='COMPLETO')MontoSimple.value=Number(f.SaldoPendiente).toFixed(2);
+  else if(!f)MontoSimple.value='';
+  MontoSimple.max=f?Number(f.SaldoPendiente):'';
+  syncTipo();
+}
+function syncTipo(){
+  const f=selectedFactura();
+  const combinado=FormaPagoSimple.value==='COMBINACION';
+  combBox.style.display=combinado?'block':'none';
+  montoSimpleWrap.style.display=combinado?'none':'';
+  MontoSimple.readOnly=TipoPago.value==='COMPLETO';
+  if(f&&TipoPago.value==='COMPLETO'&&!combinado)MontoSimple.value=Number(f.SaldoPendiente).toFixed(2);
+  if(combinado&&payRows.children.length===0)addPaymentRow();
+  if(combinado&&f&&TipoPago.value==='COMPLETO'&&payRows.children.length===1){
+    payRows.querySelector('.pay-amount').value=Number(f.SaldoPendiente).toFixed(2);calcCombined();
+  }
+}
+function addPaymentRow(){
+  const row=document.createElement('div');row.className='payment-row';
+  row.style.cssText='display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;margin:8px 0';
+  row.innerHTML=`<label>Forma de pago<select class="pay-method">${optionsFormas(false)}</select></label><label>Monto<input class="pay-amount" type="number" min="0.01" step="0.01"></label><button type="button" class="secondary remove-pay">×</button>`;
+  row.querySelector('.remove-pay').onclick=()=>{row.remove();calcCombined()};
+  row.querySelector('.pay-amount').oninput=calcCombined;
+  payRows.appendChild(row);calcCombined();
+}
+function calcCombined(){combinedTotal.textContent=money([...document.querySelectorAll('.pay-amount')].reduce((a,x)=>a+Number(x.value||0),0));}
+async function loadForm(){
+  const j=await api('/api/query/pagos-form');if(!j.ok)throw new Error(j.message||'No se pudo cargar el formulario.');
+  facturas=j.facturas||[];formas=j.formas||[];
+  facturasList.innerHTML=facturas.map(f=>`<option value="${f.FacturaId}" label="${f.Etiqueta}"></option>`).join('');
+  FormaPagoSimple.innerHTML=optionsFormas(true);
+}
+FacturaId.addEventListener('input',syncFactura);TipoPago.addEventListener('change',syncTipo);FormaPagoSimple.addEventListener('change',syncTipo);addPay.onclick=addPaymentRow;
+payForm.onsubmit=async e=>{
+  e.preventDefault();msg.textContent='';
+  const f=selectedFactura();if(!f)return alert('Seleccione una factura pendiente o parcialmente pagada de la lista.');
+  const saldo=Number(f.SaldoPendiente);let pagos=[];
+  if(FormaPagoSimple.value==='COMBINACION'){
+    pagos=[...document.querySelectorAll('.payment-row')].map(r=>({FormaPagoId:Number(r.querySelector('.pay-method').value),Monto:Number(r.querySelector('.pay-amount').value)}));
+    if(!pagos.length||pagos.some(x=>!x.FormaPagoId||!(x.Monto>0)))return alert('Complete todas las formas de pago.');
+  }else{
+    if(!FormaPagoSimple.value)return alert('Seleccione una forma de pago.');
+    pagos=[{FormaPagoId:Number(FormaPagoSimple.value),Monto:Number(MontoSimple.value)}];
+  }
+  const total=pagos.reduce((a,x)=>a+x.Monto,0);
+  if(total<=0||total>saldo+0.001)return alert('El total pagado debe ser mayor que cero y no superar el saldo pendiente.');
+  if(TipoPago.value==='COMPLETO'&&Math.abs(total-saldo)>0.01)return alert('Para pago completo, la suma debe ser exactamente el saldo pendiente.');
+  if(TipoPago.value==='PARCIAL'&&total>=saldo-0.001)return alert('Para pago parcial, el monto debe ser menor que el saldo pendiente.');
+  const j=await api('/api/ops/pagos',{method:'POST',body:JSON.stringify({FacturaId:Number(f.FacturaId),Pagos:pagos,Observaciones:Observaciones.value})});
+  msg.textContent=j.message||'Pago registrado.';
+  if(j.ok){payForm.reset();payRows.innerHTML='';combinedTotal.textContent='0.00';await loadForm();syncFactura();await loadQ('pagos');}
+};
+addEventListener('DOMContentLoaded',async()=>{try{await loadForm();syncTipo();await loadQ('pagos')}catch(e){alert(e.message)}});
+</script>

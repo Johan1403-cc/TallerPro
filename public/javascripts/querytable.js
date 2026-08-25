@@ -1,0 +1,2 @@
+function renderTable(t,rows,extra){if(!rows.length){t.innerHTML='<tbody><tr><td>Sin registros</td></tr></tbody>';return}let cols=Object.keys(rows[0]);t.innerHTML='<thead><tr>'+cols.map(c=>`<th>${c}</th>`).join('')+(extra?'<th>Acción</th>':'')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+cols.map(c=>`<td>${r[c]??''}</td>`).join('')+(extra?`<td>${extra(r)}</td>`:'')+'</tr>').join('')+'</tbody>'}
+async function loadQ(name,extra){let j=await api('/api/query/'+name);renderTable(document.getElementById('qtable'),j.rows||[],extra)}

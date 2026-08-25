@@ -1,0 +1,20 @@
+<div class="toolbar"><input id="search" placeholder="Buscar por placa, VIN, cliente o modelo..."><button class="primary" id="btnNuevo">+ Registrar</button></div>
+<div class="panel table-wrap"><table id="grid"><thead><tr><th>ID</th><th>Cliente</th><th>Placa</th><th>VIN</th><th>Marca / Modelo</th><th>Tipo</th><th>Combustible</th><th>Categoría</th><th>Año</th><th>Km</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
+<dialog id="dlg"><form id="vehiculoForm"><h2 id="formTitle">Nuevo vehículo</h2><input type="hidden" id="recordId">
+<div class="form-grid">
+<label>Cliente *<select name="ClienteId" id="ClienteId" required></select></label>
+<label>Placa (ej. ABC123) *<input name="Placa" required maxlength="20" placeholder="ABC123"></label>
+<label>VIN (ej. 1HGCM82633A004352) *<input name="VIN" required maxlength="40" placeholder="1HGCM82633A004352"></label>
+<label>Modelo *<select name="ModeloId" id="ModeloId" required></select></label>
+<label>Tipo de vehículo *<select name="TipoVehiculoId" id="TipoVehiculoId" required></select></label>
+<label>Combustible *<select name="TipoCombustibleId" id="TipoCombustibleId" required></select></label>
+<label>Categoría<select name="CategoriaVehiculoId" id="CategoriaVehiculoId"></select></label>
+<label>Año *<input name="Anio" type="number" min="1900" max="2100" required></label>
+<label>Color<input name="Color"></label>
+<label>Cilindraje cc<input name="CilindrajeCC" type="number" min="0"></label>
+<label>Kilometraje<input name="KilometrajeActual" type="number" min="0"></label>
+<label>Fecha ingreso<input name="FechaIngreso" type="date"></label>
+<label class="wide">Observaciones<textarea name="Observaciones" rows="3"></textarea></label>
+<label class="inline-check">Activo <input name="Activo" type="checkbox" checked></label>
+</div><div class="dialog-actions"><button type="button" onclick="dlg.close()">Cancelar</button><button class="primary">Guardar</button></div></form></dialog>
+<script src="/javascripts/vehiculos.js"></script>

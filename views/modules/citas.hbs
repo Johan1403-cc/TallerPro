@@ -1,0 +1,14 @@
+<div class="toolbar"><input id="search" placeholder="Buscar por cliente, placa, servicio o mecánico..."><button class="primary" id="btnNuevo">+ Registrar</button></div>
+<div class="panel table-wrap"><table id="grid"><thead><tr><th>ID</th><th>Cliente</th><th>Vehículo</th><th>Servicios</th><th>Mecánicos</th><th>Área</th><th>Inicio</th><th>Duración</th><th>Observaciones</th><th>Acciones</th></tr></thead><tbody></tbody></table></div>
+<dialog id="dlg"><form id="citaForm"><h2 id="formTitle">Nueva cita</h2><input type="hidden" id="recordId">
+<div class="form-grid">
+<label>Cliente *<select id="ClienteId" required></select></label>
+<label>Vehículo *<select id="VehiculoId" required disabled><option value="">Seleccione primero un cliente</option></select></label>
+<label>Área de trabajo *<select id="AreaTrabajoId" required></select></label>
+<label>Inicio *<input id="FechaHoraInicio" type="datetime-local" required></label>
+<label class="wide">Servicios *<select id="ServicioIds" multiple size="7" required></select><small>Puede seleccionar varios con Ctrl/Cmd + clic. La duración se calcula automáticamente.</small></label>
+<label class="wide">Mecánicos *<select id="MecanicoIds" multiple size="7" required></select><small>Puede asignar uno o varios mecánicos.</small></label>
+<label>Duración estimada<input id="DuracionEstimadaMinutos" readonly></label>
+<label class="wide">Observaciones<textarea id="Observaciones" rows="3"></textarea></label>
+</div><div class="dialog-actions"><button type="button" onclick="dlg.close()">Cancelar</button><button class="primary">Guardar</button></div></form></dialog>
+<script src="/javascripts/citas.js"></script>

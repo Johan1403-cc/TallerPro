@@ -1,0 +1,56 @@
+<div class="toolbar">
+  <input id="search" placeholder="Buscar por número, placa, cliente o estado...">
+  <button class="primary" id="btnNuevo">+ Registrar</button>
+</div>
+<div class="panel table-wrap">
+  <table id="grid">
+    <thead><tr><th>Número</th><th>Vehículo</th><th>Cliente</th><th>Vencimiento</th><th>Horas MO</th><th>Monto MO</th><th>Costo diagnóstico</th><th>Descuento</th><th>Total</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<dialog id="dlg">
+  <form id="cotizacionForm">
+    <h2 id="formTitle">Nueva cotización</h2>
+    <input type="hidden" id="recordId">
+    <div class="form-grid">
+      <label class="wide">Vehículo / diagnóstico finalizado *<select id="DiagnosticoId" required></select><small>Solo aparecen vehículos cuyo diagnóstico está Finalizado.</small></label>
+      <label>Fecha de vencimiento *<input id="FechaVencimiento" type="date" required></label>
+      <label>Horas de mano de obra<input id="HorasManoObra" readonly></label>
+      <label>Precio por hora ₡ *<input id="PrecioHoraManoObra" type="number" min="0" step="0.01" required></label>
+      <label>Monto mano de obra<input id="MontoManoObra" readonly></label>
+      <label>Costo diagnóstico<input id="CostoDiagnostico" readonly></label>
+      <label>Descuento
+        <select id="DescuentoPorcentaje" required>
+          <option value="0">Sin descuento</option>
+          <option value="5">5%</option>
+          <option value="10">10%</option>
+          <option value="15">15%</option>
+        </select>
+      </label>
+      <label>Estado *
+        <select id="Estado" required>
+          <option value="ENVIADA">Enviada al cliente</option>
+          <option value="APROBADA">Aprobada total</option>
+          <option value="APROBADA PARCIAL">Aprobada parcialmente</option>
+          <option value="RECHAZADA">Rechazada</option>
+          <option value="MODIFICADA">Modificada</option>
+          <option value="CONVERTIDA">Convertida en una orden de trabajo</option>
+        </select>
+      </label>
+      <label class="wide">Condiciones<textarea id="Condiciones" rows="3" maxlength="1000"></textarea></label>
+      <label class="wide">Observaciones<textarea id="Observaciones" rows="3" maxlength="1000"></textarea></label>
+      <div class="wide panel" style="padding:14px">
+        <strong>Resumen automático</strong>
+        <div id="resumenCotizacion" style="margin-top:8px"></div>
+      </div>
+      <div class="wide" id="detalleParcial" style="display:none">
+        <strong>Elementos autorizados para aprobación parcial</strong>
+        <small>Seleccione únicamente los servicios y repuestos aceptados por el cliente.</small>
+        <div id="serviciosParciales" style="margin-top:8px"></div>
+        <div id="productosParciales" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="dialog-actions"><button type="button" onclick="dlg.close()">Cancelar</button><button class="primary">Guardar</button></div>
+  </form>
+</dialog>
+<script src="/javascripts/cotizaciones.js"></script>

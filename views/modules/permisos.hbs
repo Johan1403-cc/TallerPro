@@ -1,0 +1,19 @@
+<div class="panel">
+  <div>
+    <h2 style="margin:0 0 6px">Permisos por rol</h2>
+    <p style="margin:0 0 18px;color:#66717e">Seleccione un rol para abrir sus permisos y marque únicamente las funciones que podrá utilizar.</p>
+  </div>
+  <div id="rolesMenu" class="roles-menu"></div>
+</div>
+
+<div class="panel" id="permPanel" style="display:none;margin-top:16px">
+  <div class="perm-header">
+    <div>
+      <small>Rol seleccionado</small>
+      <h2 id="selectedRoleName" style="margin:3px 0"></h2>
+    </div>
+    <button type="button" id="closePerms">Cerrar</button>
+  </div>
+  <div id="permissionGroups" class="permission-groups"></div>
+</div>
+<script src="/javascripts/permisos.js"></script>

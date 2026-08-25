@@ -1,0 +1,39 @@
+<div class="toolbar">
+  <input id="search" placeholder="Buscar por cliente, placa, motivo o empleado...">
+  <button class="primary" id="btnNuevo">+ Registrar</button>
+</div>
+<div class="panel table-wrap">
+  <table id="grid">
+    <thead><tr><th>Número</th><th>Cliente</th><th>Vehículo</th><th>Ingreso</th><th>Kilometraje</th><th>Combustible</th><th>Motivo</th><th>Empleado recibe</th><th>Observaciones</th><th>Acciones</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<dialog id="dlg">
+  <form id="recepcionForm">
+    <h2 id="formTitle">Nueva recepción</h2>
+    <input type="hidden" id="recordId">
+    <div class="form-grid">
+      <label>Cliente *<select id="ClienteId" required></select></label>
+      <label>Vehículo / placa *<select id="VehiculoId" required disabled><option value="">Seleccione primero un cliente</option></select></label>
+      <label>Kilometraje *<input id="KilometrajeIngreso" type="number" min="0" step="1" required></label>
+      <label>Nivel de combustible *
+        <select id="NivelCombustible" required>
+          <option value="">Seleccione...</option>
+          <option value="NULO">Vacío</option>
+          <option value="POCO">Poco</option>
+          <option value="INTERMEDIO">Intermedio</option>
+          <option value="LLENO">Lleno</option>
+        </select>
+      </label>
+      <label>Motivo *<input id="MotivoVisita" maxlength="500" required></label>
+      <label class="wide">Problema indicado<textarea id="ProblemaCliente" rows="3" maxlength="1500"></textarea></label>
+      <label class="wide">Accesorios / objetos<textarea id="AccesoriosObjetos" rows="2" maxlength="1000"></textarea></label>
+      <label class="wide">Daños visibles<textarea id="DanosVisibles" rows="3" maxlength="1500"></textarea></label>
+      <label>Empleado que recibe *<select id="EmpleadoRecibeId" required></select></label>
+      <label class="wide">Observaciones<textarea id="Observaciones" rows="3" maxlength="1500"></textarea></label>
+      <div class="wide"><small>La fecha estimada de entrega se calculará después del diagnóstico. El estado del proceso también se gestiona posteriormente y no se solicita en esta recepción.</small></div>
+    </div>
+    <div class="dialog-actions"><button type="button" onclick="dlg.close()">Cancelar</button><button class="primary">Guardar</button></div>
+  </form>
+</dialog>
+<script src="/javascripts/recepciones.js"></script>

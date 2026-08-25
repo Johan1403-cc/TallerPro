@@ -1,0 +1,56 @@
+<div class="toolbar">
+  <input id="search" placeholder="Buscar por orden, cotización, placa, cliente o estado...">
+  <button id="btnNuevo" class="primary">+ Registrar</button>
+</div>
+<div class="panel table-wrap">
+  <table id="grid">
+    <thead><tr><th>Número</th><th>Cotización</th><th>Vehículo</th><th>Cliente</th><th>Apertura</th><th>Entrega estimada</th><th>Prioridad</th><th>Estado</th><th>Observaciones</th><th>Acciones</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<dialog id="dlg">
+  <form id="ordenForm">
+    <h2 id="formTitle">Nueva orden de trabajo</h2>
+    <input type="hidden" id="recordId">
+    <div class="form-grid">
+      <label class="wide">Cotización disponible *
+        <select id="CotizacionId" required></select>
+        <small>Solo aparecen cotizaciones en estado "Convertida en una orden de trabajo" que todavía no tienen orden.</small>
+      </label>
+      <label>Vehículo / placa<input id="Vehiculo" readonly></label>
+      <label>Cliente<input id="Cliente" readonly></label>
+      <label>Entrega estimada *<input id="FechaEstimadaEntrega" type="datetime-local" required></label>
+      <label>Prioridad *
+        <select id="Prioridad" required>
+          <option value="ALTA">Alta</option>
+          <option value="MEDIA" selected>Media</option>
+          <option value="BAJA">Baja</option>
+        </select>
+      </label>
+      <label>Estado *
+        <select id="Estado" required>
+          <option value="REGISTRADA">Registrada</option>
+          <option value="PENDIENTE DE APROBACION">Pendiente de aprobación</option>
+          <option value="APROBADA">Aprobada</option>
+          <option value="EN PROCESO">En proceso</option>
+          <option value="EN ESPERA DE REPUESTOS">En espera de repuestos</option>
+          <option value="SUSPENDIDA">Suspendida</option>
+          <option value="FINALIZADA">Finalizada</option>
+          <option value="FACTURADA">Facturada</option>
+          <option value="ENTREGADA">Entregada</option>
+          <option value="CANCELADA">Cancelada</option>
+        </select>
+      </label>
+      <label class="wide">Observaciones<textarea id="Observaciones" rows="4" maxlength="1500"></textarea></label>
+      <div class="wide panel" style="padding:14px">
+        <strong>Reglas del estado</strong>
+        <div style="margin-top:6px"><small>
+          Suspendida: no se debe trabajar la orden. Finalizada: terminó la mano de obra y puede facturarse.
+          Facturada: debe existir una factura. Entregada: la factura debe estar pagada. Cancelada: no se realizará el trabajo.
+        </small></div>
+      </div>
+    </div>
+    <div class="dialog-actions"><button type="button" onclick="dlg.close()">Cancelar</button><button class="primary">Guardar</button></div>
+  </form>
+</dialog>
+<script src="/javascripts/ordenes.js"></script>

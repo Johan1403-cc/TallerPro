@@ -1,0 +1,39 @@
+<div class="toolbar">
+  <input id="search" placeholder="Buscar por placa, cliente, problema o mecánico...">
+  <button class="primary" id="btnNuevo">+ Registrar</button>
+</div>
+<div class="panel table-wrap">
+  <table id="grid">
+    <thead><tr><th>Número</th><th>Vehículo</th><th>Cliente</th><th>Problemas</th><th>Mecánico responsable</th><th>Fecha</th><th>Estado</th><th>Costo diagnóstico</th><th>Acciones</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+<dialog id="dlg">
+  <form id="diagnosticoForm">
+    <h2 id="formTitle">Nuevo diagnóstico</h2>
+    <input type="hidden" id="recordId">
+    <div class="form-grid">
+      <label>Vehículo recibido / placa *<select id="RecepcionId" required></select></label>
+      <label>Mecánico responsable *<select id="MecanicoResponsableId" required disabled><option value="">Seleccione primero un vehículo recibido</option></select></label>
+      <label>Estado *
+        <select id="Estado" required>
+          <option value="PENDIENTE">Pendiente</option>
+          <option value="EN REVISION">En revisión</option>
+          <option value="FINALIZADO">Finalizado</option>
+          <option value="APROBADO">Aprobado</option>
+          <option value="RECHAZADO POR EL CLIENTE">Rechazado por el cliente</option>
+        </select>
+      </label>
+      <label class="wide">Problemas encontrados<textarea id="ProblemasEncontrados" rows="3" maxlength="2000"></textarea></label>
+      <label class="wide">Pruebas realizadas<textarea id="PruebasRealizadas" rows="3" maxlength="2000"></textarea></label>
+      <label class="wide">Posibles causas<textarea id="PosiblesCausas" rows="3" maxlength="2000"></textarea></label>
+      <label class="wide">Recomendaciones<textarea id="Recomendaciones" rows="3" maxlength="2000"></textarea></label>
+      <label>Mano de obra estimada ₡<input id="ManoObraEstimada" type="number" min="0" step="0.01" value="0"></label>
+      <label>Tiempo estimado de reparación (min)<input id="TiempoEstimadoMinutos" type="number" min="0" step="1" value="0"></label>
+      <label>Costo propio del diagnóstico ₡<input id="CostoEstimado" type="number" min="0" step="0.01" value="0"></label>
+      <div class="wide"><small>El costo del diagnóstico es independiente del costo de los servicios y repuestos. Se sumará posteriormente en el proceso de cotización/facturación. Solo los diagnósticos en estado <strong>Finalizado</strong> pueden generar una cotización.</small></div>
+    </div>
+    <div class="dialog-actions"><button type="button" onclick="dlg.close()">Cancelar</button><button class="primary">Guardar</button></div>
+  </form>
+</dialog>
+<script src="/javascripts/diagnosticos.js"></script>

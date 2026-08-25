@@ -1,0 +1,86 @@
+<div class="panel">
+  <div class="toolbar">
+    <div>
+      <h2 style="margin:0">Generar factura</h2>
+      <p class="muted">Seleccione una orden de trabajo finalizada o una venta confirmada que todavía no tenga factura.</p>
+    </div>
+  </div>
+
+  <form id="facturaForm">
+    <div class="form-grid">
+      <label>Origen de la factura
+        <select id="tipoOrigen" required>
+          <option value="">Seleccione...</option>
+          <option value="ORDEN">Orden de trabajo</option>
+          <option value="VENTA">Venta directa</option>
+        </select>
+      </label>
+      <label class="wide">Orden / venta disponible
+        <select id="origenId" required disabled>
+          <option value="">Primero seleccione el origen...</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="resumen" style="display:none;margin-top:18px">
+      <h3>Vista previa</h3>
+      <div id="cabeceraFactura" class="cards" style="grid-template-columns:repeat(4,1fr)"></div>
+      <div class="table-wrap"><table id="detalleFactura"></table></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px">
+        <div class="panel" style="width:min(430px,100%);box-shadow:none">
+          <div style="display:flex;justify-content:space-between"><span>Subtotal</span><b id="subtotalPreview">₡0,00</b></div>
+          <div style="display:flex;justify-content:space-between"><span>Impuestos</span><b id="impuestosPreview">₡0,00</b></div>
+          <div style="display:flex;justify-content:space-between"><span>Descuentos</span><b id="descuentosPreview">₡0,00</b></div>
+          <hr>
+          <div style="display:flex;justify-content:space-between;font-size:18px"><span>Total</span><b id="totalPreview">₡0,00</b></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dialog-actions"><button class="primary" id="btnGenerar" disabled>Generar factura</button></div>
+  </form>
+  <div id="msg" class="message"></div>
+</div>
+
+<div class="panel">
+  <h2>Facturas registradas</h2>
+  <div class="table-wrap"><table id="qtable"></table></div>
+</div>
+<script src="/javascripts/querytable.js"></script>
+<script>
+let disponibles={ordenes:[],ventas:[]};
+const money=n=>'₡'+Number(n||0).toLocaleString('es-CR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+
+async function cargarDisponibles(){
+  const j=await api('/api/query/facturacion-form');
+  disponibles={ordenes:j.ordenes||[],ventas:j.ventas||[]};
+  poblarOrigen();
+}
+function poblarOrigen(){
+  const tipo=tipoOrigen.value;
+  const arr=tipo==='ORDEN'?disponibles.ordenes:tipo==='VENTA'?disponibles.ventas:[];
+  origenId.disabled=!tipo;
+  origenId.innerHTML=`<option value="">${tipo?'Seleccione una opción disponible...':'Primero seleccione el origen...'}</option>`+arr.map(x=>`<option value="${tipo==='ORDEN'?x.OrdenTrabajoId:x.VentaId}">${esc(x.Etiqueta)}</option>`).join('');
+  resumen.style.display='none';btnGenerar.disabled=true;
+  if(tipo&&arr.length===0)origenId.innerHTML='<option value="">No hay registros disponibles para facturar</option>';
+}
+async function cargarPreview(){
+  if(!tipoOrigen.value||!origenId.value){resumen.style.display='none';btnGenerar.disabled=true;return;}
+  const j=await api(`/api/query/facturacion-detalle/${tipoOrigen.value.toLowerCase()}/${origenId.value}`);
+  const h=j.cabecera||{},d=j.detalles||[];
+  cabeceraFactura.innerHTML=j.tipo==='ORDEN'
+    ? `<article><span>Orden</span><b>${esc(h.NumeroOrden)}</b></article><article><span>Cliente</span><b style="font-size:16px">${esc(h.Cliente)}</b></article><article><span>Vehículo</span><b style="font-size:16px">${esc(h.Placa)} — ${esc(h.Vehiculo)}</b></article><article><span>Estado</span><b>${esc(h.Estado)}</b></article>`
+    : `<article><span>Venta</span><b>${esc(h.NumeroVenta)}</b></article><article><span>Cliente</span><b style="font-size:16px">${esc(h.Cliente)}</b></article><article><span>Forma de pago indicada</span><b style="font-size:16px">${esc(h.FormaPago||'Por definir')}</b></article><article><span>Estado</span><b>${esc(h.Estado)}</b></article>`;
+  detalleFactura.innerHTML='<thead><tr><th>Tipo</th><th>Descripción</th><th>Cantidad</th><th>Precio unitario</th><th>Impuesto</th><th>Descuento</th><th>Total</th></tr></thead><tbody>'+d.map(x=>`<tr><td>${esc(x.Tipo)}</td><td>${esc(x.Descripcion)}</td><td>${Number(x.Cantidad||0)}</td><td>${money(x.PrecioUnitario)}</td><td>${money(x.Impuesto)}</td><td>${money(x.Descuento)}</td><td>${money(x.TotalLinea)}</td></tr>`).join('')+'</tbody>';
+  const subtotal=d.reduce((a,x)=>a+(Number(x.Cantidad||0)*Number(x.PrecioUnitario||0)),0);
+  const descuentos=d.reduce((a,x)=>a+Number(x.Descuento||0),0);
+  const impuestos=d.reduce((a,x)=>a+Number(x.Impuesto||0),0);
+  const total=d.reduce((a,x)=>a+Number(x.TotalLinea||0),0);
+  subtotalPreview.textContent=money(subtotal);descuentosPreview.textContent=money(descuentos);impuestosPreview.textContent=money(impuestos);totalPreview.textContent=money(total);
+  resumen.style.display='block';btnGenerar.disabled=false;
+}
+tipoOrigen.onchange=poblarOrigen;origenId.onchange=cargarPreview;
+facturaForm.onsubmit=async e=>{e.preventDefault();if(!tipoOrigen.value||!origenId.value)return;const ok=confirm('¿Generar la factura con la información mostrada?');if(!ok)return;try{btnGenerar.disabled=true;const j=await api('/api/ops/facturas/generar',{method:'POST',body:JSON.stringify({Tipo:tipoOrigen.value,OrigenId:+origenId.value})});msg.style.color='#18733d';msg.textContent=j.message+(j.data?.FacturaId?` Factura ID: ${j.data.FacturaId}`:'');await cargarDisponibles();await loadQ('facturas',r=>`<a class="btn" target="_blank" href="/api/ops/facturas/${r.FacturaId}/pdf">PDF</a>`);}catch(err){msg.style.color='#9d2020';msg.textContent=err.message;btnGenerar.disabled=false;}};
+addEventListener('DOMContentLoaded',async()=>{try{await cargarDisponibles();await loadQ('facturas',r=>`<a class="btn" target="_blank" href="/api/ops/facturas/${r.FacturaId}/pdf">PDF</a>`);}catch(e){alert(e.message)}});
+</script>
