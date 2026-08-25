@@ -365,7 +365,7 @@ async function renderResource(view){
  if(!r || !r.endpoint) throw new Error(`No existe configuración para el módulo "${view}".`);
  let rows=await api(r.endpoint);state.data[view]=rows;
  const q=state.search.toLowerCase();if(q)rows=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
- return head(r.title,desc(view))+`<div class="toolbar"><div class="search"><i class="fa-solid fa-magnifying-glass"></i><input id="searchInput" value="${esc(state.search)}" placeholder="Buscar..."></div><button class="filter" data-action="refresh">Actualizar</button></div>${rows.length?tableFor(view,rows):`<div class="card"><div class="empty-state"><h3>No hay ${r.title.toLowerCase()} registrados</h3><p>Usa el botón Nuevo para comenzar.</p></div></div>`}`;
+ return head(r.title,desc(view))+`<div class="toolbar"><div class="search"><i class="fa-solid fa-magnifying-glass"></i><input id="searchInput" value="${esc(state.search)}" placeholder="Buscar..." autocomplete="off"></div><button class="filter" data-action="search">Buscar</button><button class="filter" data-action="refresh">Actualizar</button></div>${rows.length?tableFor(view,rows):`<div class="card"><div class="empty-state"><h3>No hay ${r.title.toLowerCase()} registrados</h3><p>Usa el botón Nuevo para comenzar.</p></div></div>`}`;
 }
 function desc(v){return ({clientes:'Clientes del taller y sus datos de contacto.',vehiculos:'Vehículos de Clientes: unidades asociadas a clientes y basadas en el catálogo administrativo.',empleados:'Personal y responsables del taller.',servicios:'Catálogo de servicios y mano de obra.',proveedores:'Proveedores de repuestos e insumos.',inventario:'Existencias y precios de repuestos.',citas:'Agenda de atención y mantenimiento.',recepciones:'Ingreso y condición inicial del vehículo.',diagnosticos:'Evaluación técnica y hallazgos.',cotizaciones:'Presupuestos derivados de diagnósticos.',ordenes:'Ciclo completo de reparación.',compras:'Compras y entradas de inventario.',ventas:'Ventas de repuestos.',facturas:'Facturación, pagos y estados.',garantias:'Garantías y seguimiento.',usuarios:'Usuarios del sistema, correo, estado y roles.',roles:'Administración de roles y sus permisos.',permisos:'Catálogo de permisos almacenado en la base de datos.'}[v]||'Gestión del taller.');}
 async function renderAdminVehiculos(){
@@ -406,6 +406,7 @@ async function renderAdminVehiculos(){
 }
 
 async function openRolePermissions(id){
+  setModalMode('edit');
   const data=await api(`permisos/rol/${id}`);
   const groups={};
   (data.permisos||[]).forEach(p=>{const key=p.modulo||'OTROS';(groups[key] ||= []).push(p);});
@@ -476,7 +477,12 @@ function barChart(items,labelKey,valueKey){
 }
 function table(headers,rows){return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(x=>`<td>${x??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
 function empty(m){return `<div class="empty-state"><h3>${m}</h3></div>`;}
+function setModalMode(mode='edit'){
+ const actions=document.querySelector('#modal .modal-actions');
+ if(actions) actions.style.display=mode==='view'?'none':'flex';
+}
 async function openForm(view,id=null){
+ setModalMode('edit');
  const saveButton=document.querySelector('#modal [data-action]');
  if(saveButton)saveButton.dataset.action='save';
  const normalizedView = view === 'role' ? 'roles' : view === 'usuario_roles' ? 'usuarios' : view;
@@ -551,6 +557,7 @@ document.addEventListener('click',async e=>{
      if(action==='edit') return openForm(resource,id);
      if(action==='view'){
        const d=await findRow(resource,id);
+       setModalMode('view');
        $('#modalTitle').textContent='Detalle';
        $('#modalBody').innerHTML=detailHtml(resource,d);
        return $('#modal').classList.add('show');
@@ -578,10 +585,14 @@ document.addEventListener('click',async e=>{
     return render();
   }
   if(action==='new')return openForm(state.view);
+  if(action==='search'){
+    state.search=String($('#searchInput')?.value||'').trim();
+    return render();
+  }
   if(action==='save'){try{await saveForm();}catch(err){toast(err.message,'error');}return;}
   if(action==='refresh'){state.search='';return render();}
   if(action==='edit')return openForm(state.view,Number(e.target.closest('[data-action]').dataset.id));
-  if(action==='view'){const id=Number(e.target.closest('[data-action]').dataset.id);const d=await findRow(state.view,id);$('#modalTitle').textContent='Detalle';$('#modalBody').innerHTML=detailHtml(state.view,d);return $('#modal').classList.add('show');}
+  if(action==='view'){const id=Number(e.target.closest('[data-action]').dataset.id);const d=await findRow(state.view,id);setModalMode('view');$('#modalTitle').textContent='Detalle';$('#modalBody').innerHTML=detailHtml(state.view,d);return $('#modal').classList.add('show');}
   if(action==='delete'){const id=Number(e.target.closest('[data-action]').dataset.id);if(!confirm('¿Eliminar este registro?'))return;await api(`${resources[state.view].endpoint}/${id}`,{method:'DELETE'});toast('Registro eliminado');return render();}
  }catch(err){toast(err.message,'error');}
 });
@@ -589,7 +600,13 @@ document.addEventListener('submit',async e=>{
  if(e.target.id==='entityForm'){e.preventDefault();try{await saveForm();}catch(err){toast(err.message,'error');}}
  if(e.target.id==='configForm'){e.preventDefault();try{const d=Object.fromEntries(new FormData(e.target).entries());await api('configuracion',{method:'PUT',body:JSON.stringify(d)});toast('Configuración guardada');}catch(err){toast(err.message,'error');}}
 });
-document.addEventListener('input',e=>{if(e.target.id==='searchInput'){state.search=e.target.value;render();}});
+document.addEventListener('keydown',e=>{
+ if(e.target.id==='searchInput'&&e.key==='Enter'){
+   e.preventDefault();
+   state.search=String(e.target.value||'').trim();
+   render();
+ }
+});
 document.addEventListener('click',e=>{if(e.target.closest('.close-modal')||e.target===$('#modal'))$('#modal').classList.remove('show');});
 applyMenuPermissions();
 render();
