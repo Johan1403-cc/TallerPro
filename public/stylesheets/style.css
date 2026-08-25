@@ -45,3 +45,16 @@ button{cursor:pointer}
 .bar-track{height:9px;border-radius:999px;background:#edf0f4;overflow:hidden}
 .bar-fill{height:100%;border-radius:999px;background:currentColor;opacity:.7}
 @media(max-width:700px){.bar-row{grid-template-columns:90px 1fr auto}.report-filters{align-items:stretch}.report-filters>*{width:100%}}
+
+/* Administración de usuarios, roles y permisos */
+.field select[multiple]{min-height:150px;padding:10px;background:#fff}
+.permission-help{margin:0 0 14px;color:#5f6b7a;font-size:13px}
+.permission-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;max-height:58vh;overflow:auto;padding-right:4px}
+.permission-group{border:1px solid #e3e8ef;border-radius:12px;padding:12px;background:#fafbfc}
+.permission-group h3{margin:0 0 9px;font-size:13px;color:#25324a}
+.permission-check{display:flex;align-items:flex-start;gap:9px;padding:7px;border-radius:8px;cursor:pointer}
+.permission-check:hover{background:#f0f4f8}
+.permission-check input{margin-top:3px}
+.permission-check span{display:flex;flex-direction:column;gap:2px}
+.permission-check b{font-size:12px}
+.permission-check small{font-size:10px;color:#7b8794;word-break:break-all}
