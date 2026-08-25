@@ -25,6 +25,7 @@ const VIEW_PERMISSIONS = {
   garantias:'GARANTIAS_CONSULTAR',
   facturas:'FACTURAS_CONSULTAR',
   usuarios:'USUARIOS_CONSULTAR',
+  roles:'ROLES_CONSULTAR',
   permisos:'PERMISOS_CONSULTAR',
   reportes:'REPORTES_CONSULTAR',
   configuracion:'CONFIGURACION_CONSULTAR'
@@ -141,14 +142,18 @@ const resources = {
     ['total','Total','number',true],['forma_pago','Forma de pago','select',true],['estado','Estado','select',true],
     ['id_usuario_emite','Usuario emite','select',true]
   ]},
-  usuarios:{title:'Usuarios y roles',singular:'usuario',endpoint:'usuarios',fields:[
+  usuarios:{title:'Usuarios',singular:'usuario',endpoint:'usuarios',fields:[
     ['nombre_usuario','Usuario','text',true],['email','Correo','email',true],
-    ['id_cliente','Cliente','select'],['activo','Activo','select'],
-    ['roles','Roles','text']
+    ['password','Contraseña','password'],['activo','Activo','select'],
+    ['role_ids','Roles','multiselect',true]
   ]},
   roles:{title:'Roles',singular:'rol',endpoint:'roles',fields:[
     ['nombre','Nombre','text',true],['descripcion','Descripción','textarea'],
     ['activo','Activo','select']
+  ]},
+  permisos:{title:'Permisos',singular:'permiso',endpoint:'permisos',fields:[
+    ['codigo','Código','text',true],['nombre','Nombre','text',true],
+    ['modulo','Módulo','text',true],['descripcion','Descripción','textarea']
   ]},
   garantias:{title:'Garantías',singular:'garantía',endpoint:'garantias',fields:[
     ['tipo_garantia','Tipo','select',true],['id_orden','Orden','number'],['id_venta','Venta','number'],
@@ -213,6 +218,10 @@ function selectOptions(name,view,value){
   if(name==='id_recepcion')return (state.data.recepciones||[]).map(x=>`<option value="${x.id}" ${String(x.id)===String(value)?'selected':''}>#${x.numero_consecutivo} — ${esc(x.placa||'')}</option>`).join('');
   if(name==='id_diagnostico')return (state.data.diagnosticos||[]).map(x=>`<option value="${x.id}" ${String(x.id)===String(value)?'selected':''}>#${x.id} — recepción ${x.numero_consecutivo||''}</option>`).join('');
   if(name==='id_usuario'||name==='id_usuario_emite')return (state.catalogs.usuarios||[]).map(x=>`<option value="${x.id}" ${String(x.id)===String(value)?'selected':''}>${esc(x.nombre_usuario)}</option>`).join('');
+  if(name==='role_ids'){
+    const selected=new Set(String(value||'').split(',').map(x=>x.trim()).filter(Boolean));
+    return (state.catalogs.roles||[]).filter(x=>x.activo!==false&&x.activo!==0).map(x=>`<option value="${x.id}" ${selected.has(String(x.id))?'selected':''}>${esc(x.nombre)}</option>`).join('');
+  }
   let fallback = options[view]?.[name]||[];
   if(name==='tipo_cliente') fallback=['FISICO','JURIDICO'];
   if(name==='estado_laboral') fallback=['ACTIVO','INACTIVO','VACACIONES'];
@@ -227,7 +236,16 @@ function fieldHtml(view,f,value=''){
  const [name,label,type,req]=f;
  const required=req===true||req==='required'?'required':'';
  if(view==='inventario'&&name==='stock_actual')return `<div class="field"><label>${esc(label)}</label><input name="${name}" type="number" value="${esc(value||0)}" readonly><small>La existencia cambia únicamente mediante movimientos de inventario.</small></div>`;
- if(name==='roles') return `<div class="field full"><label>${esc(label)}</label><input type="text" value="${esc(value||'Sin rol')}" readonly><small>Los roles se administran desde la asignación de roles del usuario.</small></div>`;
+ if(view==='permisos'&&name==='codigo'&&state.editing?.id){
+   return `<div class="field"><label>${esc(label)}</label><input name="${name}" type="text" value="${esc(value)}" readonly><small>El código técnico no puede cambiarse porque controla la autorización del backend.</small></div>`;
+ }
+ if(type==='password'){
+   const isEdit=Boolean(state.editing?.id);
+   return `<div class="field full"><label>${esc(label)}${isEdit?' (opcional)':''}</label><input name="${name}" type="password" autocomplete="new-password" minlength="8" ${isEdit?'': 'required'} placeholder="${isEdit?'Déjala vacía para conservar la actual':'Mínimo 8 caracteres'}"><small>Debe incluir mayúscula, minúscula, número y carácter especial.</small></div>`;
+ }
+ if(type==='multiselect'){
+   return `<div class="field full"><label>${esc(label)}</label><select name="${name}" multiple size="${Math.min(7,Math.max(4,(state.catalogs.roles||[]).length))}" ${required}>${selectOptions(name,view,value)}</select><small>Puedes seleccionar uno o varios roles. Los datos se cargan directamente desde ROLES en la base de datos.</small></div>`;
+ }
  if(type==='select')return `<div class="field"><label>${esc(label)}</label><select name="${name}" ${required}><option value="">-- Seleccione --</option>${selectOptions(name,view,value)}</select></div>`;
  if(type==='textarea')return `<div class="field full"><label>${esc(label)}</label><textarea name="${name}" ${required}>${esc(value)}</textarea></div>`;
  return `<div class="field"><label>${esc(label)}</label><input name="${name}" type="${type}" value="${esc(formatInput(type,value))}" ${required}></div>`;
@@ -265,16 +283,49 @@ function displayValue(k,row){
   return row[k];
 }
 function tableFor(view,rows){
+ if(view==='usuarios'){
+   const headers=['Usuario','Correo','Activo','Roles','Intentos fallidos','Bloqueado hasta'];
+   return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(x=>`<th>${esc(x)}</th>`).join('')}<th>Acciones</th></tr></thead><tbody>${rows.map(row=>`<tr>
+     <td>${esc(row.nombre_usuario)}</td><td>${esc(row.email)}</td><td>${row.activo?'Sí':'No'}</td>
+     <td>${esc(row.roles||'Sin rol')}</td><td>${esc(row.intentos_fallidos||0)}</td><td>${esc(row.bloqueado_hasta?new Date(row.bloqueado_hasta).toLocaleString('es-CR'):'—')}</td>
+     <td class="actions"><button class="icon-btn" data-action="view" data-id="${row.id}">Ver</button><button class="icon-btn" data-action="edit" data-id="${row.id}">Editar</button><button class="icon-btn" data-action="delete" data-id="${row.id}">Desactivar</button></td>
+   </tr>`).join('')}</tbody></table></div>`;
+ }
+ if(view==='roles'){
+   const headers=['Nombre','Descripción','Activo','Usuarios','Permisos'];
+   return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(x=>`<th>${esc(x)}</th>`).join('')}<th>Acciones</th></tr></thead><tbody>${rows.map(row=>`<tr>
+     <td>${esc(row.nombre)}</td><td>${esc(row.descripcion||'')}</td><td>${row.activo?'Sí':'No'}</td><td>${esc(row.usuarios||0)}</td><td>${esc(row.permisos||0)}</td>
+     <td class="actions"><button class="icon-btn" data-action="role-permissions" data-id="${row.id}">Permisos</button><button class="icon-btn" data-action="edit" data-id="${row.id}">Editar</button><button class="icon-btn" data-action="delete" data-id="${row.id}">Eliminar</button></td>
+   </tr>`).join('')}</tbody></table></div>`;
+ }
+ if(view==='permisos'){
+   const headers=['Código','Nombre','Módulo','Descripción','Roles'];
+   return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(x=>`<th>${esc(x)}</th>`).join('')}<th>Acciones</th></tr></thead><tbody>${rows.map(row=>`<tr>
+     <td>${esc(row.codigo)}</td><td>${esc(row.nombre)}</td><td>${esc(row.modulo||'')}</td><td>${esc(row.descripcion||'')}</td><td>${esc(row.roles||'Sin asignar')}</td>
+     <td class="actions"><button class="icon-btn" data-action="edit" data-id="${row.id}">Editar</button><button class="icon-btn" data-action="delete" data-id="${row.id}">Eliminar</button></td>
+   </tr>`).join('')}</tbody></table></div>`;
+ }
  const r=resources[view], cols=r.fields.map(f=>f[0]);const headers=r.fields.map(f=>f[1]);
  return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(esc).map(x=>`<th>${x}</th>`).join('')}<th>Acciones</th></tr></thead><tbody>${rows.map((row,i)=>`<tr>${cols.map(k=>{const display=displayValue(k,row);return `<td>${k==='estado'?status(display):esc(k==='precio_base'?money(display):k==='precio_venta'?money(display):display)}</td>`}).join('')}<td class="actions"><button class="icon-btn" data-action="view" data-id="${row.id}">Ver</button><button class="icon-btn" data-action="edit" data-id="${row.id}">Editar</button><button class="icon-btn" data-action="delete" data-id="${row.id}">Eliminar</button></td></tr>`).join('')}</tbody></table></div>`;
 }
 function detailHtml(view,row){
  const normalizedView=view==='role'?'roles':view==='usuario_roles'?'usuarios':view;
+ if(normalizedView==='usuarios'){
+   return `<div class="detail-list">
+     <div><small>Usuario</small><b>${esc(row.nombre_usuario)}</b></div>
+     <div><small>Correo</small><b>${esc(row.email)}</b></div>
+     <div><small>Activo</small><b>${row.activo?'Sí':'No'}</b></div>
+     <div><small>Roles</small><b>${esc(row.roles||'Sin rol')}</b></div>
+     <div><small>Último acceso</small><b>${esc(row.ultimo_acceso?new Date(row.ultimo_acceso).toLocaleString('es-CR'):'—')}</b></div>
+     <div><small>Intentos fallidos</small><b>${esc(row.intentos_fallidos||0)}</b></div>
+   </div>`;
+ }
  const r=resources[normalizedView];
  if(!r)return '<div class="detail-list">'+Object.entries(row).map(([k,v])=>`<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')+'</div>';
- return '<div class="detail-list">'+r.fields.map(f=>{
+ return '<div class="detail-list">'+r.fields.filter(f=>f[2]!=='password').map(f=>{
    const [name,label]=f;
    let val=displayValue(name,row);
+   if(name==='role_ids') val=row.roles||'Sin rol';
    if(name==='precio_base'||name==='precio_venta')val=money(val);
    if(name==='estado')return `<div><small>${esc(label)}</small><b>${status(val)}</b></div>`;
    return `<div><small>${esc(label)}</small><b>${esc(val)}</b></div>`;
@@ -315,7 +366,7 @@ async function renderResource(view){
  const q=state.search.toLowerCase();if(q)rows=rows.filter(x=>JSON.stringify(x).toLowerCase().includes(q));
  return head(r.title,desc(view))+`<div class="toolbar"><div class="search"><i class="fa-solid fa-magnifying-glass"></i><input id="searchInput" value="${esc(state.search)}" placeholder="Buscar..."></div><button class="filter" data-action="refresh">Actualizar</button></div>${rows.length?tableFor(view,rows):`<div class="card"><div class="empty-state"><h3>No hay ${r.title.toLowerCase()} registrados</h3><p>Usa el botón Nuevo para comenzar.</p></div></div>`}`;
 }
-function desc(v){return ({clientes:'Clientes del taller y sus datos de contacto.',vehiculos:'Vehículos de Clientes: unidades asociadas a clientes y basadas en el catálogo administrativo.',empleados:'Personal y responsables del taller.',servicios:'Catálogo de servicios y mano de obra.',proveedores:'Proveedores de repuestos e insumos.',inventario:'Existencias y precios de repuestos.',citas:'Agenda de atención y mantenimiento.',recepciones:'Ingreso y condición inicial del vehículo.',diagnosticos:'Evaluación técnica y hallazgos.',cotizaciones:'Presupuestos derivados de diagnósticos.',ordenes:'Ciclo completo de reparación.',compras:'Compras y entradas de inventario.',ventas:'Ventas de repuestos.',facturas:'Facturación, pagos y estados.',garantias:'Garantías y seguimiento.',usuarios:'Usuarios, roles y permisos.'}[v]||'Gestión del taller.');}
+function desc(v){return ({clientes:'Clientes del taller y sus datos de contacto.',vehiculos:'Vehículos de Clientes: unidades asociadas a clientes y basadas en el catálogo administrativo.',empleados:'Personal y responsables del taller.',servicios:'Catálogo de servicios y mano de obra.',proveedores:'Proveedores de repuestos e insumos.',inventario:'Existencias y precios de repuestos.',citas:'Agenda de atención y mantenimiento.',recepciones:'Ingreso y condición inicial del vehículo.',diagnosticos:'Evaluación técnica y hallazgos.',cotizaciones:'Presupuestos derivados de diagnósticos.',ordenes:'Ciclo completo de reparación.',compras:'Compras y entradas de inventario.',ventas:'Ventas de repuestos.',facturas:'Facturación, pagos y estados.',garantias:'Garantías y seguimiento.',usuarios:'Usuarios del sistema, correo, estado y roles.',roles:'Administración de roles y sus permisos.',permisos:'Catálogo de permisos almacenado en la base de datos.'}[v]||'Gestión del taller.');}
 async function renderAdminVehiculos(){
   const catalogRows=await api('vehiculos-catalogo');
   const marcas=await api('marcas');
@@ -352,6 +403,34 @@ async function renderAdminVehiculos(){
       ${mini(resources.categoriasVehiculoAdmin,categorias)}
     </div>`;
 }
+
+async function openRolePermissions(id){
+  const data=await api(`permisos/rol/${id}`);
+  const groups={};
+  (data.permisos||[]).forEach(p=>{const key=p.modulo||'OTROS';(groups[key] ||= []).push(p);});
+  state.rolePermissionEditing={id,rol:data.rol};
+  $('#modalTitle').textContent=`Permisos del rol: ${data.rol.nombre}`;
+  $('#modalBody').innerHTML=`<form id="rolePermissionsForm"><p class="permission-help">Marca o desmarca los permisos que tendrá este rol. Los cambios se guardan en ROL_PERMISO.</p>
+    <div class="permission-groups">${Object.entries(groups).map(([module,items])=>`<section class="permission-group"><h3>${esc(module)}</h3>
+      ${items.map(p=>`<label class="permission-check"><input type="checkbox" name="id_permisos" value="${p.id}" ${p.asignado?'checked':''}><span><b>${esc(p.nombre)}</b><small>${esc(p.codigo)}</small></span></label>`).join('')}
+    </section>`).join('')}</div></form>`;
+  const saveButton=document.querySelector('#modal [data-action]');
+  if(saveButton)saveButton.dataset.action='save-role-permissions';
+  $('#modal').classList.add('show');
+}
+
+async function saveRolePermissions(){
+  const form=$('#rolePermissionsForm');
+  if(!form||!state.rolePermissionEditing)throw new Error('No hay un rol seleccionado.');
+  const id_permisos=new FormData(form).getAll('id_permisos').map(Number);
+  await api(`permisos/rol/${state.rolePermissionEditing.id}`,{method:'PUT',body:JSON.stringify({id_permisos})});
+  state.catalogs.roles=await api('roles');
+  $('#modal').classList.remove('show');
+  toast('Permisos del rol actualizados');
+  state.rolePermissionEditing=null;
+  render();
+}
+
 async function renderSpecial(view){
  if(view==='admin-vehiculos')return renderAdminVehiculos();
  if(view==='reportes'){
@@ -380,11 +459,6 @@ async function renderSpecial(view){
      section('Utilidad/resumen por orden',['Orden','Total'],d.utilidadOrdenes.map(x=>[x.id_orden,money(x.total_orden)]))+
      section('Situación de órdenes',['Pendientes','Atrasadas','Finalizadas'],[[d.ordenesSituacion.pendientes||0,d.ordenesSituacion.atrasadas||0,d.ordenesSituacion.finalizadas||0]]);
  }
- if(view==='permisos'){
-   const rows=await api('permisos');
-   return head('Permisos','Permisos y roles asociados almacenados en la base de datos.',false)+
-     (rows.length?table(['Código','Nombre','Módulo','Roles'],rows.map(x=>[esc(x.codigo),esc(x.nombre),esc(x.modulo||''),esc(x.roles||'Sin asignar')])):empty('No hay permisos configurados'));
- }
  if(view==='configuracion'){const rows=await api('configuracion');return head('Configuración','Parámetros generales guardados en CONFIGURACION_GENERAL.',false)+`<div class="form-card"><form id="configForm"><div class="form-grid">${rows.map(x=>`<div class="field"><label>${esc(x.clave)}</label><input name="${esc(x.clave)}" value="${esc(x.valor||'')}"><small>${esc(x.descripcion||'')}</small></div>`).join('')}</div><div class="modal-actions"><button class="btn primary">Guardar configuración</button></div></form></div>`;}
  if(view==='ordenes'){return renderResource('ordenes');}
  return renderResource(view);
@@ -402,6 +476,8 @@ function barChart(items,labelKey,valueKey){
 function table(headers,rows){return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(x=>`<td>${x??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
 function empty(m){return `<div class="empty-state"><h3>${m}</h3></div>`;}
 async function openForm(view,id=null){
+ const saveButton=document.querySelector('#modal [data-action]');
+ if(saveButton)saveButton.dataset.action='save';
  const normalizedView = view === 'role' ? 'roles' : view === 'usuario_roles' ? 'usuarios' : view;
  const r=resources[normalizedView];
  if(!r || !r.endpoint) throw new Error(`No existe configuración para el módulo "${view}".`);
@@ -415,6 +491,10 @@ async function saveForm(){
  const f=$('#entityForm'), view=state.editing.view,r=resources[view];
  if(!r || !r.endpoint) throw new Error(`No existe configuración para el módulo "${view}".`);
  const data=Object.fromEntries(new FormData(f).entries());
+ if(view==='usuarios'){
+   data.role_ids=new FormData(f).getAll('role_ids').map(Number);
+   if(!data.password)delete data.password;
+ }
  const desiredOrderState=view==='ordenes'?data.estado:null;
  if(view==='ordenes') delete data.estado;
  if(view==='vehiculos' && data.id_vehiculo_catalogo){
@@ -443,6 +523,7 @@ async function saveForm(){
  }else{
    await api(r.endpoint,{method:'POST',body:JSON.stringify(data)});
  }
+ if(view==='roles')state.catalogs.roles=await api('roles');
  $('#modal').classList.remove('show');toast('Guardado correctamente');await applyMenuPermissions();
 render();
 }
@@ -480,6 +561,13 @@ document.addEventListener('click',async e=>{
  const a=e.target.closest('[data-view]');if(a){e.preventDefault();if(!canAccessView(a.dataset.view))return toast('No tienes permisos para acceder a este módulo.','error');state.view=a.dataset.view;state.search='';document.querySelectorAll('#nav a').forEach(x=>x.classList.toggle('active',x===a));return render();}
  const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
  try{
+  if(action==='role-permissions'){
+    const id=Number(e.target.closest('[data-action]').dataset.id);
+    return openRolePermissions(id);
+  }
+  if(action==='save-role-permissions'){
+    return saveRolePermissions();
+  }
   if(action==='report-filter'){
     const desde=$('#reportDesde')?.value||'',hasta=$('#reportHasta')?.value||'';
     state.reportQuery=`desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
