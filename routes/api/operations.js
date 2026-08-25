@@ -102,21 +102,87 @@ router.post('/notificaciones/generar',async(req,res,next)=>{try{const p=await ge
 
 
 async function validarCita(pool,{CitaId=null,ClienteId,VehiculoId,AreaTrabajoId,FechaHoraInicio,ServicioIds,MecanicoIds}){
- const own=await pool.request().input('v',sql.Int,VehiculoId).input('c',sql.Int,ClienteId).query('SELECT 1 ok FROM Vehiculos WHERE VehiculoId=@v AND ClienteId=@c AND Activo=1');
+ const clienteId=Number(ClienteId),vehiculoId=Number(VehiculoId),areaId=Number(AreaTrabajoId);
+ const servicios=[...new Set((Array.isArray(ServicioIds)?ServicioIds:[]).map(Number).filter(Number.isInteger))];
+ const mecanicos=[...new Set((Array.isArray(MecanicoIds)?MecanicoIds:[]).map(Number).filter(Number.isInteger))];
+ if(!clienteId||!vehiculoId||!areaId){const e=new Error('Cliente, vehículo y área de trabajo son obligatorios.');e.status=400;throw e;}
+ if(!servicios.length){const e=new Error('Debe seleccionar al menos un servicio.');e.status=400;throw e;}
+ if(!mecanicos.length){const e=new Error('Debe seleccionar al menos un mecánico.');e.status=400;throw e;}
+ if(!FechaHoraInicio||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(FechaHoraInicio))){const e=new Error('La fecha y hora de inicio no son válidas.');e.status=400;throw e;}
+ const own=await pool.request().input('v',sql.Int,vehiculoId).input('c',sql.Int,clienteId).query('SELECT 1 ok FROM Vehiculos WHERE VehiculoId=@v AND ClienteId=@c AND Activo=1');
  if(!own.recordset[0]){const e=new Error('El vehículo seleccionado no pertenece al cliente indicado.');e.status=400;throw e;}
- if(!Array.isArray(ServicioIds)||!ServicioIds.length){const e=new Error('Debe seleccionar al menos un servicio.');e.status=400;throw e;}
- if(!Array.isArray(MecanicoIds)||!MecanicoIds.length){const e=new Error('Debe seleccionar al menos un mecánico.');e.status=400;throw e;}
- const mins=(await pool.request().input('ids',sql.NVarChar(sql.MAX),JSON.stringify(ServicioIds)).query(`SELECT SUM(s.TiempoEstimadoMinutos) Minutos,COUNT(*) Cantidad FROM Servicios s JOIN OPENJSON(@ids) j ON s.ServicioId=TRY_CONVERT(int,j.value) WHERE s.Activo=1`)).recordset[0];
- if(Number(mins.Cantidad)!==ServicioIds.length){const e=new Error('Uno o más servicios seleccionados no son válidos o están inactivos.');e.status=400;throw e;}
- const dur=Number(mins.Minutos||0); const fin=new Date(new Date(FechaHoraInicio).getTime()+dur*60000);
- const req=pool.request().input('id',sql.Int,CitaId||0).input('inicio',sql.DateTime2,new Date(FechaHoraInicio)).input('fin',sql.DateTime2,fin).input('area',sql.Int,AreaTrabajoId).input('mecs',sql.NVarChar(sql.MAX),JSON.stringify(MecanicoIds));
- const col=(await req.query(`SELECT TOP 1 c.CitaId FROM Citas c WHERE c.CitaId<>@id AND c.Estado NOT IN(N'CANCELADA',N'CLIENTE AUSENTE') AND c.FechaHoraInicio<@fin AND DATEADD(minute,c.DuracionEstimadaMinutos,c.FechaHoraInicio)>@inicio AND (c.AreaTrabajoId=@area OR EXISTS(SELECT 1 FROM CitaMecanicos cm JOIN OPENJSON(@mecs) j ON cm.EmpleadoId=TRY_CONVERT(int,j.value) WHERE cm.CitaId=c.CitaId))`)).recordset[0];
+ const area=await pool.request().input('a',sql.Int,areaId).query('SELECT AreaTrabajoId,Nombre FROM AreasTrabajo WHERE AreaTrabajoId=@a AND Activa=1');
+ if(!area.recordset[0]){const e=new Error('El área de trabajo seleccionada no está disponible.');e.status=400;throw e;}
+ const mins=(await pool.request().input('ids',sql.NVarChar(sql.MAX),JSON.stringify(servicios)).query(`SELECT SUM(s.TiempoEstimadoMinutos) Minutos,COUNT(*) Cantidad FROM Servicios s JOIN OPENJSON(@ids) j ON s.ServicioId=TRY_CONVERT(int,j.value) WHERE s.Activo=1`)).recordset[0];
+ if(Number(mins.Cantidad)!==servicios.length){const e=new Error('Uno o más servicios seleccionados no son válidos o están inactivos.');e.status=400;throw e;}
+ const mecs=(await pool.request().input('ids',sql.NVarChar(sql.MAX),JSON.stringify(mecanicos)).query(`SELECT COUNT(DISTINCT e.EmpleadoId) Cantidad FROM Empleados e JOIN OPENJSON(@ids) j ON e.EmpleadoId=TRY_CONVERT(int,j.value) WHERE e.EstadoLaboral=N'ACTIVO'`)).recordset[0];
+ if(Number(mecs.Cantidad)!==mecanicos.length){const e=new Error('Uno o más mecánicos seleccionados no están activos o no existen.');e.status=400;throw e;}
+ const dur=Number(mins.Minutos||0);
+ if(!(dur>0)){const e=new Error('La duración calculada de la cita debe ser mayor que cero.');e.status=400;throw e;}
+ // Se mantiene la fecha/hora tal como la eligió el usuario. No se convierte a UTC con new Date(),
+ // porque Render opera normalmente en UTC y eso desplazaba la hora local de Costa Rica.
+ const fechaLocal=String(FechaHoraInicio).slice(0,19);
+ const col=(await pool.request()
+   .input('id',sql.Int,Number(CitaId)||0)
+   .input('inicioTxt',sql.NVarChar(30),fechaLocal)
+   .input('dur',sql.Int,dur)
+   .input('area',sql.Int,areaId)
+   .input('mecs',sql.NVarChar(sql.MAX),JSON.stringify(mecanicos))
+   .query(`DECLARE @inicio datetime2=TRY_CONVERT(datetime2,@inicioTxt,126);
+           IF @inicio IS NULL THROW 50071,'Fecha/hora de cita inválida.',1;
+           DECLARE @fin datetime2=DATEADD(MINUTE,@dur,@inicio);
+           SELECT TOP 1 c.CitaId
+           FROM Citas c
+           WHERE c.CitaId<>@id
+             AND c.Estado NOT IN(N'CANCELADA',N'CLIENTE AUSENTE')
+             AND c.FechaHoraInicio<@fin
+             AND DATEADD(MINUTE,c.DuracionEstimadaMinutos,c.FechaHoraInicio)>@inicio
+             AND (
+                  c.AreaTrabajoId=@area
+                  OR EXISTS(
+                       SELECT 1
+                       FROM CitaMecanicos cm
+                       JOIN OPENJSON(@mecs) j ON cm.EmpleadoId=TRY_CONVERT(int,j.value)
+                       WHERE cm.CitaId=c.CitaId
+                  )
+                  OR (c.EmpleadoId IS NOT NULL AND EXISTS(
+                       SELECT 1 FROM OPENJSON(@mecs) j WHERE c.EmpleadoId=TRY_CONVERT(int,j.value)
+                  ))
+             );`)).recordset[0];
  if(col){const e=new Error('Existe otra cita incompatible en ese horario para el área o alguno de los mecánicos seleccionados.');e.status=409;throw e;}
- return dur;
+ return {dur,fechaLocal,area:area.recordset[0].Nombre,servicios,mecanicos};
 }
 router.get('/citas/:id',async(req,res,next)=>{try{if(!has(req,'CITAS_CONSULTAR'))return res.status(403).json({ok:false,message:'Sin permiso.'});const p=await getPool();const h=(await p.request().input('id',sql.Int,req.params.id).query('SELECT CitaId,ClienteId,VehiculoId,AreaTrabajoId,FechaHoraInicio,DuracionEstimadaMinutos,Observaciones FROM Citas WHERE CitaId=@id')).recordset[0];if(!h)return res.status(404).json({ok:false,message:'Cita no encontrada.'});h.ServicioIds=(await p.request().input('id',sql.Int,req.params.id).query('SELECT ServicioId FROM CitaServicios WHERE CitaId=@id')).recordset.map(x=>x.ServicioId);h.MecanicoIds=(await p.request().input('id',sql.Int,req.params.id).query('SELECT EmpleadoId FROM CitaMecanicos WHERE CitaId=@id')).recordset.map(x=>x.EmpleadoId);res.json({ok:true,data:h});}catch(e){next(e)}});
-router.post('/citas',async(req,res,next)=>{let tx;try{if(!has(req,'CITAS_REGISTRAR'))return res.status(403).json({ok:false,message:'Sin permiso.'});const p=await getPool();const dur=await validarCita(p,req.body);tx=new sql.Transaction(p);await tx.begin();const firstS=Number(req.body.ServicioIds[0]),firstM=Number(req.body.MecanicoIds[0]);const area=(await new sql.Request(tx).input('a',sql.Int,req.body.AreaTrabajoId).query('SELECT Nombre FROM AreasTrabajo WHERE AreaTrabajoId=@a AND Activa=1')).recordset[0];if(!area)throw new Error('Área de trabajo inválida.');const r=await new sql.Request(tx).input('ClienteId',sql.Int,req.body.ClienteId).input('VehiculoId',sql.Int,req.body.VehiculoId).input('ServicioId',sql.Int,firstS).input('EmpleadoId',sql.Int,firstM).input('AreaTrabajo',sql.NVarChar(100),area.Nombre).input('AreaTrabajoId',sql.Int,req.body.AreaTrabajoId).input('FechaHoraInicio',sql.DateTime2,new Date(req.body.FechaHoraInicio)).input('Duracion',sql.Int,dur).input('Observaciones',sql.NVarChar(1000),req.body.Observaciones||null).input('UsuarioId',sql.Int,req.user.id).query(`INSERT Citas(ClienteId,VehiculoId,ServicioId,EmpleadoId,AreaTrabajo,AreaTrabajoId,FechaHoraInicio,DuracionEstimadaMinutos,Estado,Observaciones,CreadaPorUsuarioId) OUTPUT INSERTED.CitaId VALUES(@ClienteId,@VehiculoId,@ServicioId,@EmpleadoId,@AreaTrabajo,@AreaTrabajoId,@FechaHoraInicio,@Duracion,N'PROGRAMADA',@Observaciones,@UsuarioId)`);const id=r.recordset[0].CitaId;for(const sid of req.body.ServicioIds)await new sql.Request(tx).input('c',sql.Int,id).input('s',sql.Int,sid).query('INSERT CitaServicios(CitaId,ServicioId) VALUES(@c,@s)');for(const mid of req.body.MecanicoIds)await new sql.Request(tx).input('c',sql.Int,id).input('m',sql.Int,mid).query('INSERT CitaMecanicos(CitaId,EmpleadoId) VALUES(@c,@m)');await tx.commit();await audit(req,{module:'CITAS',action:'REGISTRAR',operation:'INSERT',recordId:id,after:req.body});res.json({ok:true,id,message:'Cita registrada. Duración calculada automáticamente en '+dur+' minutos.'});}catch(e){if(tx&&tx._aborted===false)try{await tx.rollback()}catch{}next(e)}});
-router.put('/citas/:id',async(req,res,next)=>{let tx;try{if(!has(req,'CITAS_MODIFICAR'))return res.status(403).json({ok:false,message:'Sin permiso.'});const p=await getPool();const dur=await validarCita(p,{...req.body,CitaId:Number(req.params.id)});tx=new sql.Transaction(p);await tx.begin();const firstS=Number(req.body.ServicioIds[0]),firstM=Number(req.body.MecanicoIds[0]);const area=(await new sql.Request(tx).input('a',sql.Int,req.body.AreaTrabajoId).query('SELECT Nombre FROM AreasTrabajo WHERE AreaTrabajoId=@a AND Activa=1')).recordset[0];if(!area)throw new Error('Área de trabajo inválida.');await new sql.Request(tx).input('id',sql.Int,req.params.id).input('ClienteId',sql.Int,req.body.ClienteId).input('VehiculoId',sql.Int,req.body.VehiculoId).input('ServicioId',sql.Int,firstS).input('EmpleadoId',sql.Int,firstM).input('AreaTrabajo',sql.NVarChar(100),area.Nombre).input('AreaTrabajoId',sql.Int,req.body.AreaTrabajoId).input('FechaHoraInicio',sql.DateTime2,new Date(req.body.FechaHoraInicio)).input('Duracion',sql.Int,dur).input('Observaciones',sql.NVarChar(1000),req.body.Observaciones||null).query(`UPDATE Citas SET ClienteId=@ClienteId,VehiculoId=@VehiculoId,ServicioId=@ServicioId,EmpleadoId=@EmpleadoId,AreaTrabajo=@AreaTrabajo,AreaTrabajoId=@AreaTrabajoId,FechaHoraInicio=@FechaHoraInicio,DuracionEstimadaMinutos=@Duracion,Observaciones=@Observaciones WHERE CitaId=@id;DELETE CitaServicios WHERE CitaId=@id;DELETE CitaMecanicos WHERE CitaId=@id;`);for(const sid of req.body.ServicioIds)await new sql.Request(tx).input('c',sql.Int,req.params.id).input('s',sql.Int,sid).query('INSERT CitaServicios(CitaId,ServicioId) VALUES(@c,@s)');for(const mid of req.body.MecanicoIds)await new sql.Request(tx).input('c',sql.Int,req.params.id).input('m',sql.Int,mid).query('INSERT CitaMecanicos(CitaId,EmpleadoId) VALUES(@c,@m)');await tx.commit();await audit(req,{module:'CITAS',action:'MODIFICAR',operation:'UPDATE',recordId:req.params.id,after:req.body});res.json({ok:true,message:'Cita actualizada. Duración recalculada en '+dur+' minutos.'});}catch(e){if(tx&&tx._aborted===false)try{await tx.rollback()}catch{}next(e)}});
+router.post('/citas',async(req,res,next)=>{let tx=null,begun=false;try{
+ if(!has(req,'CITAS_REGISTRAR'))return res.status(403).json({ok:false,message:'Sin permiso.'});
+ const p=await getPool();const v=await validarCita(p,req.body);
+ tx=new sql.Transaction(p);await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);begun=true;
+ const firstS=v.servicios[0],firstM=v.mecanicos[0];
+ // Se vuelve a validar dentro de la transacción para evitar carreras entre dos usuarios que guardan al mismo tiempo.
+ const conflict=await new sql.Request(tx).input('inicioTxt',sql.NVarChar(30),v.fechaLocal).input('dur',sql.Int,v.dur).input('area',sql.Int,Number(req.body.AreaTrabajoId)).input('mecs',sql.NVarChar(sql.MAX),JSON.stringify(v.mecanicos)).query(`DECLARE @inicio datetime2=TRY_CONVERT(datetime2,@inicioTxt,126),@fin datetime2;SET @fin=DATEADD(MINUTE,@dur,@inicio);SELECT TOP 1 c.CitaId FROM Citas c WITH(UPDLOCK,HOLDLOCK) WHERE c.Estado NOT IN(N'CANCELADA',N'CLIENTE AUSENTE') AND c.FechaHoraInicio<@fin AND DATEADD(MINUTE,c.DuracionEstimadaMinutos,c.FechaHoraInicio)>@inicio AND (c.AreaTrabajoId=@area OR EXISTS(SELECT 1 FROM CitaMecanicos cm JOIN OPENJSON(@mecs) j ON cm.EmpleadoId=TRY_CONVERT(int,j.value) WHERE cm.CitaId=c.CitaId) OR (c.EmpleadoId IS NOT NULL AND EXISTS(SELECT 1 FROM OPENJSON(@mecs) j WHERE c.EmpleadoId=TRY_CONVERT(int,j.value))));`);
+ if(conflict.recordset[0]){const e=new Error('Existe otra cita incompatible en ese horario para el área o alguno de los mecánicos seleccionados.');e.status=409;throw e;}
+ const r=await new sql.Request(tx).input('ClienteId',sql.Int,Number(req.body.ClienteId)).input('VehiculoId',sql.Int,Number(req.body.VehiculoId)).input('ServicioId',sql.Int,firstS).input('EmpleadoId',sql.Int,firstM).input('AreaTrabajo',sql.NVarChar(100),v.area).input('AreaTrabajoId',sql.Int,Number(req.body.AreaTrabajoId)).input('FechaTxt',sql.NVarChar(30),v.fechaLocal).input('Duracion',sql.Int,v.dur).input('Observaciones',sql.NVarChar(1000),req.body.Observaciones||null).input('UsuarioId',sql.Int,req.user.id).query(`DECLARE @fecha datetime2=TRY_CONVERT(datetime2,@FechaTxt,126);IF @fecha IS NULL THROW 50071,'Fecha/hora de cita inválida.',1;INSERT Citas(ClienteId,VehiculoId,ServicioId,EmpleadoId,AreaTrabajo,AreaTrabajoId,FechaHoraInicio,DuracionEstimadaMinutos,Estado,Observaciones,CreadaPorUsuarioId) OUTPUT INSERTED.CitaId VALUES(@ClienteId,@VehiculoId,@ServicioId,@EmpleadoId,@AreaTrabajo,@AreaTrabajoId,@fecha,@Duracion,N'PROGRAMADA',@Observaciones,@UsuarioId)`);
+ const id=r.recordset[0].CitaId;
+ for(const sid of v.servicios)await new sql.Request(tx).input('c',sql.Int,id).input('s',sql.Int,sid).query('INSERT CitaServicios(CitaId,ServicioId) VALUES(@c,@s)');
+ for(const mid of v.mecanicos)await new sql.Request(tx).input('c',sql.Int,id).input('m',sql.Int,mid).query('INSERT CitaMecanicos(CitaId,EmpleadoId) VALUES(@c,@m)');
+ await tx.commit();begun=false;
+ await audit(req,{module:'CITAS',action:'REGISTRAR',operation:'INSERT',recordId:id,after:req.body});
+ res.json({ok:true,id,message:'Cita registrada. Duración calculada automáticamente en '+v.dur+' minutos.'});
+}catch(e){if(begun&&tx)try{await tx.rollback()}catch(rollbackError){console.error('ROLLBACK CITA:',rollbackError.message)}next(e)}});
+router.put('/citas/:id',async(req,res,next)=>{let tx=null,begun=false;try{
+ if(!has(req,'CITAS_MODIFICAR'))return res.status(403).json({ok:false,message:'Sin permiso.'});
+ const p=await getPool();const citaId=Number(req.params.id);const v=await validarCita(p,{...req.body,CitaId:citaId});
+ tx=new sql.Transaction(p);await tx.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);begun=true;
+ const firstS=v.servicios[0],firstM=v.mecanicos[0];
+ const conflict=await new sql.Request(tx).input('id',sql.Int,citaId).input('inicioTxt',sql.NVarChar(30),v.fechaLocal).input('dur',sql.Int,v.dur).input('area',sql.Int,Number(req.body.AreaTrabajoId)).input('mecs',sql.NVarChar(sql.MAX),JSON.stringify(v.mecanicos)).query(`DECLARE @inicio datetime2=TRY_CONVERT(datetime2,@inicioTxt,126),@fin datetime2;SET @fin=DATEADD(MINUTE,@dur,@inicio);SELECT TOP 1 c.CitaId FROM Citas c WITH(UPDLOCK,HOLDLOCK) WHERE c.CitaId<>@id AND c.Estado NOT IN(N'CANCELADA',N'CLIENTE AUSENTE') AND c.FechaHoraInicio<@fin AND DATEADD(MINUTE,c.DuracionEstimadaMinutos,c.FechaHoraInicio)>@inicio AND (c.AreaTrabajoId=@area OR EXISTS(SELECT 1 FROM CitaMecanicos cm JOIN OPENJSON(@mecs) j ON cm.EmpleadoId=TRY_CONVERT(int,j.value) WHERE cm.CitaId=c.CitaId) OR (c.EmpleadoId IS NOT NULL AND EXISTS(SELECT 1 FROM OPENJSON(@mecs) j WHERE c.EmpleadoId=TRY_CONVERT(int,j.value))));`);
+ if(conflict.recordset[0]){const e=new Error('Existe otra cita incompatible en ese horario para el área o alguno de los mecánicos seleccionados.');e.status=409;throw e;}
+ await new sql.Request(tx).input('id',sql.Int,citaId).input('ClienteId',sql.Int,Number(req.body.ClienteId)).input('VehiculoId',sql.Int,Number(req.body.VehiculoId)).input('ServicioId',sql.Int,firstS).input('EmpleadoId',sql.Int,firstM).input('AreaTrabajo',sql.NVarChar(100),v.area).input('AreaTrabajoId',sql.Int,Number(req.body.AreaTrabajoId)).input('FechaTxt',sql.NVarChar(30),v.fechaLocal).input('Duracion',sql.Int,v.dur).input('Observaciones',sql.NVarChar(1000),req.body.Observaciones||null).query(`DECLARE @fecha datetime2=TRY_CONVERT(datetime2,@FechaTxt,126);IF @fecha IS NULL THROW 50071,'Fecha/hora de cita inválida.',1;UPDATE Citas SET ClienteId=@ClienteId,VehiculoId=@VehiculoId,ServicioId=@ServicioId,EmpleadoId=@EmpleadoId,AreaTrabajo=@AreaTrabajo,AreaTrabajoId=@AreaTrabajoId,FechaHoraInicio=@fecha,DuracionEstimadaMinutos=@Duracion,Observaciones=@Observaciones WHERE CitaId=@id;DELETE CitaServicios WHERE CitaId=@id;DELETE CitaMecanicos WHERE CitaId=@id;`);
+ for(const sid of v.servicios)await new sql.Request(tx).input('c',sql.Int,citaId).input('s',sql.Int,sid).query('INSERT CitaServicios(CitaId,ServicioId) VALUES(@c,@s)');
+ for(const mid of v.mecanicos)await new sql.Request(tx).input('c',sql.Int,citaId).input('m',sql.Int,mid).query('INSERT CitaMecanicos(CitaId,EmpleadoId) VALUES(@c,@m)');
+ await tx.commit();begun=false;
+ await audit(req,{module:'CITAS',action:'MODIFICAR',operation:'UPDATE',recordId:citaId,after:req.body});
+ res.json({ok:true,message:'Cita actualizada. Duración recalculada en '+v.dur+' minutos.'});
+}catch(e){if(begun&&tx)try{await tx.rollback()}catch(rollbackError){console.error('ROLLBACK CITA:',rollbackError.message)}next(e)}});
 
 
 const ESTADOS_COTIZACION=new Set(['ENVIADA','APROBADA','APROBADA PARCIAL','RECHAZADA','MODIFICADA','CONVERTIDA']);
