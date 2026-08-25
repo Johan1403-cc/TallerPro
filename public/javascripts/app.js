@@ -1,36 +1,37 @@
-const state = { view:'dashboard', data:{}, catalogs:{}, search:'' };
+const state = { view:'dashboard', data:{}, catalogs:{}, search:'', reportQuery:'' };
 
 // Permisos de interfaz. El backend repite estas reglas, por lo que ocultar
 // opciones aquí es solo una mejora visual y no la única protección.
 const CURRENT_USER = window.TALLERPRO_USER || { roles: [] };
-function normalizeRole(value){return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();}
-const CURRENT_ROLES = (CURRENT_USER.roles||[]).map(r=>normalizeRole(r.nombre||r));
-const VIEW_ROLES = {
-  dashboard: [],
-  clientes: ['Administrador','Supervisor','Recepcionista','Vendedor','Cajero'],
-  vehiculos: ['Administrador','Supervisor','Recepcionista','Mecánico'],
-  'admin-vehiculos': ['Administrador','Supervisor','Recepcionista'],
-  citas: ['Administrador','Supervisor','Recepcionista'],
-  recepciones: ['Administrador','Supervisor','Recepcionista','Mecánico'],
-  diagnosticos: ['Administrador','Supervisor','Mecánico'],
-  cotizaciones: ['Administrador','Supervisor','Recepcionista','Mecánico'],
-  ordenes: ['Administrador','Supervisor','Mecánico'],
-  empleados: ['Administrador'],
-  servicios: ['Administrador','Supervisor','Mecánico'],
-  inventario: ['Administrador','Supervisor','Encargado de inventario','Vendedor'],
-  proveedores: ['Administrador','Supervisor','Encargado de inventario'],
-  compras: ['Administrador','Supervisor','Encargado de inventario'],
-  ventas: ['Administrador','Supervisor','Vendedor','Cajero'],
-  garantias: ['Administrador','Supervisor','Recepcionista','Mecánico'],
-  facturas: ['Administrador','Supervisor','Cajero'],
-  usuarios: ['Administrador'],
-  reportes: ['Administrador','Supervisor'],
-  configuracion: ['Administrador']
+let CURRENT_PERMISSIONS = new Set(
+  (window.TALLERPRO_PERMISSIONS || []).map(p => String(p.codigo || p).toUpperCase())
+);
+const VIEW_PERMISSIONS = {
+  dashboard:'DASHBOARD_CONSULTAR',
+  clientes:'CLIENTES_CONSULTAR',
+  vehiculos:'VEHICULOS_CONSULTAR',
+  'admin-vehiculos':'CATALOGOS_CONSULTAR',
+  citas:'CITAS_CONSULTAR',
+  recepciones:'RECEPCIONES_CONSULTAR',
+  diagnosticos:'DIAGNOSTICOS_CONSULTAR',
+  cotizaciones:'COTIZACIONES_CONSULTAR',
+  ordenes:'ORDENES_CONSULTAR',
+  empleados:'EMPLEADOS_CONSULTAR',
+  servicios:'SERVICIOS_CONSULTAR',
+  inventario:'INVENTARIO_CONSULTAR',
+  proveedores:'PROVEEDORES_CONSULTAR',
+  compras:'COMPRAS_CONSULTAR',
+  ventas:'VENTAS_CONSULTAR',
+  garantias:'GARANTIAS_CONSULTAR',
+  facturas:'FACTURAS_CONSULTAR',
+  usuarios:'USUARIOS_CONSULTAR',
+  permisos:'PERMISOS_CONSULTAR',
+  reportes:'REPORTES_CONSULTAR',
+  configuracion:'CONFIGURACION_CONSULTAR'
 };
 function canAccessView(view){
-  if(CURRENT_ROLES.includes('administrador')) return true;
-  const allowed=(VIEW_ROLES[view]||[]).map(normalizeRole);
-  return allowed.length===0 || allowed.some(r=>CURRENT_ROLES.includes(r));
+  const required = VIEW_PERMISSIONS[view];
+  return required ? CURRENT_PERMISSIONS.has(required) : false;
 }
 function applyMenuPermissions(){
   document.querySelectorAll('#nav [data-view]').forEach(a=>{
@@ -162,7 +163,7 @@ const options = {
   recepciones:{nivel_combustible:['VACIO','1/4','1/2','3/4','LLENO']},
   diagnosticos:{estado:['PENDIENTE','EN_REVISION','FINALIZADO','APROBADO','RECHAZADO']},
   cotizaciones:{estado:['ENVIADA','APROBADA','APROBADA_PARCIAL','RECHAZADA','MODIFICADA','CONVERTIDA']},
-  ordenes:{estado:['REGISTRADA','EN_DIAGNOSTICO','ESPERANDO_APROBACION','APROBADA','EN_REPARACION','LISTA','ENTREGADA','FINALIZADA','CANCELADA']},
+  ordenes:{estado:['REGISTRADA','EN_DIAGNOSTICO','ESPERANDO_APROBACION','APROBADA','EN_REPARACION','EN_ESPERA_REPUESTOS','SUSPENDIDA','LISTA','FINALIZADA','FACTURADA','ENTREGADA','CANCELADA']},
   compras:{forma_pago:['CONTADO','CREDITO','PARCIAL'],estado:['REGISTRADA','CONFIRMADA','ANULADA']},
   facturas:{tipo_factura:['ORDEN','VENTA','SERVICIO','MIXTA'],forma_pago:['EFECTIVO','TARJETA','TRANSFERENCIA','SINPE','CREDITO','COMBINADO'],estado:['PENDIENTE','PAGADA','PARCIAL','ANULADA','REEMBOLSADA']},
   garantias:{tipo_garantia:['SERVICIO','MANO_OBRA','REPUESTO','PRODUCTO'],estado:['VIGENTE','VENCIDA','RECLAMADA','ANULADA']}
@@ -175,12 +176,15 @@ function toast(msg,type='ok'){let e=$('.toast');if(e)e.remove();e=document.creat
 async function api(url,opts={}){const r=await fetch('/api/'+url,{headers:{'Content-Type':'application/json',...(opts.headers||{})},...opts});const text=await r.text();let data={};try{data=text?JSON.parse(text):{}}catch{data={error:text}}if(r.status===401){window.location.href='/login';throw new Error('Sesión expirada');}if(!r.ok)throw new Error(data.error||'Error de servidor');return data;}
 async function optionalApi(url, fallback=[]){
   try{return await api(url);}catch(e){
-    if(/permisos/i.test(e.message)) return fallback;
+    if(/permiso/i.test(e.message)) return fallback;
     throw e;
   }
 }
 async function loadCatalogs(){
-  state.catalogs=await api('catalogos');
+  const permData=await api('auth/permissions');
+  CURRENT_PERMISSIONS=new Set((permData.permissions||[]).map(p=>String(p.codigo||'').toUpperCase()));
+  applyMenuPermissions();
+  state.catalogs=await optionalApi('catalogos',{});
   state.catalogs.vehiculosCatalogo=await optionalApi('vehiculos-catalogo');
   state.catalogs.categorias=await optionalApi('categorias');
   state.catalogs.roles=await optionalApi('roles');
@@ -222,6 +226,7 @@ function selectOptions(name,view,value){
 function fieldHtml(view,f,value=''){
  const [name,label,type,req]=f;
  const required=req===true||req==='required'?'required':'';
+ if(view==='inventario'&&name==='stock_actual')return `<div class="field"><label>${esc(label)}</label><input name="${name}" type="number" value="${esc(value||0)}" readonly><small>La existencia cambia únicamente mediante movimientos de inventario.</small></div>`;
  if(name==='roles') return `<div class="field full"><label>${esc(label)}</label><input type="text" value="${esc(value||'Sin rol')}" readonly><small>Los roles se administran desde la asignación de roles del usuario.</small></div>`;
  if(type==='select')return `<div class="field"><label>${esc(label)}</label><select name="${name}" ${required}><option value="">-- Seleccione --</option>${selectOptions(name,view,value)}</select></div>`;
  if(type==='textarea')return `<div class="field full"><label>${esc(label)}</label><textarea name="${name}" ${required}>${esc(value)}</textarea></div>`;
@@ -286,19 +291,21 @@ async function findRow(view,id){
 }
 function head(title,desc,button=true){return `<div class="page-head"><div><h1>${title}</h1><p>${desc}</p></div>${button?`<button class="btn primary" data-action="new">+ Nuevo ${resources[state.view]?.singular||'registro'}</button>`:''}</div>`;}
 async function renderDashboard(){
- const d=await api('dashboard');const s=d.stats;
- return head('Dashboard','Resumen general del taller automotriz.',false)+
+ const d=await api('dashboard'),s=d.stats||{};
+ const card=(key,label,icon,fmt=v=>v)=>s[key]===undefined?'':`<div class="stat"><div><small>${label}</small><h3>${fmt(s[key])}</h3></div><div class="icon"><i class="${icon}"></i></div></div>`;
+ return head('Dashboard','Información visible según los permisos del usuario.',false)+
  `<div class="stats">
- <div class="stat"><div><small>Vehículos</small><h3>${s.vehiculos}</h3></div><div class="icon"><i class="fa-solid fa-car"></i></div></div>
- <div class="stat"><div><small>Órdenes activas</small><h3>${s.ordenes}</h3></div><div class="icon green"><i class="fa-solid fa-screwdriver-wrench"></i></div></div>
- <div class="stat"><div><small>Diagnósticos pendientes</small><h3>${s.diagnosticos}</h3></div><div class="icon orange"><i class="fa-solid fa-stethoscope"></i></div></div>
- <div class="stat"><div><small>Cotizaciones pendientes</small><h3>${s.cotizaciones}</h3></div><div class="icon red"><i class="fa-solid fa-file-invoice-dollar"></i></div></div>
- <div class="stat"><div><small>Por cobrar</small><h3>${money(s.por_cobrar)}</h3></div><div class="icon"><i class="fa-solid fa-file-invoice"></i></div></div>
- <div class="stat"><div><small>Ventas hoy</small><h3>${money(s.ventas_hoy)}</h3></div><div class="icon green"><i class="fa-solid fa-cash-register"></i></div></div>
- <div class="stat"><div><small>Ingresos del mes</small><h3>${money(s.ingresos_mes)}</h3></div><div class="icon orange"><i class="fa-solid fa-chart-line"></i></div></div>
+ ${card('vehiculos','Vehículos','fa-solid fa-car')}
+ ${card('ordenes','Órdenes activas','fa-solid fa-screwdriver-wrench')}
+ ${card('diagnosticos','Diagnósticos pendientes','fa-solid fa-stethoscope')}
+ ${card('cotizaciones','Cotizaciones pendientes','fa-solid fa-file-invoice-dollar')}
+ ${card('citas_hoy','Citas de hoy','fa-solid fa-calendar-check')}
+ ${card('inventario_bajo','Stock mínimo','fa-solid fa-boxes-stacked')}
+ ${card('por_cobrar','Por cobrar','fa-solid fa-file-invoice',money)}
+ ${card('ventas_hoy','Ventas hoy','fa-solid fa-cash-register',money)}
+ ${card('ingresos_mes','Ingresos del mes','fa-solid fa-chart-line',money)}
  </div>
- <div class="card"><div class="card-head"><h3>Órdenes recientes</h3></div>
- ${d.recientes.length?tableFor('ordenes',d.recientes):`<div class="empty-state"><h3>No hay órdenes todavía</h3></div>`}</div>`;
+ ${d.recientes?.length?`<div class="card"><div class="card-head"><h3>Órdenes recientes</h3></div>${table(['Orden','Estado','Fecha','Placa','Cliente'],d.recientes.map(x=>[x.id,status(x.estado),x.fecha_ingreso,x.placa,x.cliente]))}</div>`:''}`;
 }
 async function renderResource(view){
  const normalizedView = view === 'role' ? 'roles' : view === 'usuario_roles' ? 'usuarios' : view;
@@ -347,7 +354,37 @@ async function renderAdminVehiculos(){
 }
 async function renderSpecial(view){
  if(view==='admin-vehiculos')return renderAdminVehiculos();
- if(view==='reportes'){const d=await api('reportes');return head('Reportes','Indicadores obtenidos directamente de SQL Server.',false)+`<div class="grid"><div class="card"><h3>Ventas por mes</h3>${d.ventas.length?table(['Periodo','Total'],d.ventas.map(x=>[x.periodo,money(x.total)])):empty('Sin ventas pagadas')}</div><div class="card"><h3>Servicios más solicitados</h3>${d.servicios.length?table(['Servicio','Cantidad'],d.servicios.map(x=>[x.nombre,x.cantidad])):empty('Sin servicios usados')}</div></div><div class="card" style="margin-top:18px"><h3>Órdenes por estado</h3>${d.estados.length?table(['Estado','Cantidad'],d.estados.map(x=>[status(x.estado),x.cantidad])):empty()}</div>`;}
+ if(view==='reportes'){
+   const d=await api(`reportes${state.reportQuery?'?'+state.reportQuery:''}`);
+   const section=(title,headers,rows)=>`<div class="card report-section"><h3>${esc(title)}</h3>${rows?.length?table(headers,rows):empty('Sin datos')}</div>`;
+   const bars=(title,items,labelKey,valueKey)=>`<div class="card report-chart"><h3>${esc(title)}</h3>${barChart(items,labelKey,valueKey)}</div>`;
+   return head('Reportes','Reportes operativos obtenidos directamente de SQL Server.',false)+
+     `<div class="report-filters"><label>Desde <input id="reportDesde" type="date"></label><label>Hasta <input id="reportHasta" type="date"></label><button class="btn secondary" data-action="report-filter">Aplicar filtros</button></div>`+
+     `<div class="grid">${bars('Gráfico: ventas por período',d.ventasPeriodo,'periodo','total')}${bars('Gráfico: servicios más solicitados',d.serviciosTop,'nombre','cantidad')}${bars('Gráfico: órdenes por estado',d.ordenesEstado,'estado','cantidad')}</div>`+
+     section('Trabajos realizados por período',['Período','Trabajos'],d.trabajosPeriodo.map(x=>[x.periodo,x.trabajos]))+
+     section('Trabajos por mecánico',['Mecánico','Trabajos','Horas'],d.trabajosMecanico.map(x=>[x.mecanico,x.trabajos,Number(x.horas||0).toFixed(2)]))+
+     section('Horas trabajadas por empleado',['Empleado','Horas','Costo'],d.horasEmpleado.map(x=>[x.empleado,Number(x.horas||0).toFixed(2),money(x.costo_mano_obra)]))+
+     section('Vehículos por marca y modelo',['Marca','Modelo','Cantidad'],d.vehiculosMarcaModelo.map(x=>[x.marca,x.modelo,x.cantidad]))+
+     section('Clientes con más visitas',['Cliente','Visitas'],d.clientesVisitas.map(x=>[x.nombre,x.visitas]))+
+     section('Clientes con mayor facturación',['Cliente','Facturación'],d.clientesFacturacion.map(x=>[x.nombre,money(x.facturacion)]))+
+     section('Ventas por vendedor',['Vendedor','Ventas','Facturación'],d.ventasVendedor.map(x=>[x.vendedor,x.ventas,money(x.facturacion)]))+
+     section('Ventas por categoría',['Categoría','Cantidad','Total'],d.ventasCategoria.map(x=>[x.categoria,x.cantidad,money(x.total)]))+
+     section('Productos más vendidos',['Producto','Cantidad','Total'],d.productosVendidos.map(x=>[x.nombre,x.cantidad,money(x.total)]))+
+     section('Productos con poca existencia',['Producto','Existencia','Mínimo','Máximo'],d.bajoStock.map(x=>[x.nombre,x.stock_actual,x.existencia_minima,x.existencia_maxima]))+
+     section('Productos sin movimiento',['Producto','Existencia','Último movimiento'],d.sinMovimiento.map(x=>[x.nombre,x.stock_actual,x.ultimo_movimiento||'Sin movimientos']))+
+     section('Compras por proveedor',['Proveedor','Compras','Total'],d.comprasProveedor.map(x=>[x.proveedor,x.compras,money(x.total)]))+
+     section('Ingresos por servicios',['Servicio','Cantidad','Ingreso'],d.ingresosServicios.map(x=>[x.nombre,x.cantidad,money(x.ingreso)]))+
+     section('Ingresos por productos',['Producto','Cantidad','Ingreso'],d.ingresosProductos.map(x=>[x.nombre,x.cantidad,money(x.ingreso)]))+
+     section('Facturas pendientes',['Factura','Cliente','Total','Estado','Saldo'],d.facturasPendientes.map(x=>[x.numero_consecutivo,x.cliente||'',money(x.total),status(x.estado),money(x.saldo)]))+
+     section('Utilidad estimada por producto',['Producto','Unidades','Venta','Costo','Utilidad'],d.utilidadProductos.map(x=>[x.nombre,x.unidades,money(x.venta),money(x.costo),money(x.utilidad)]))+
+     section('Utilidad/resumen por orden',['Orden','Total'],d.utilidadOrdenes.map(x=>[x.id_orden,money(x.total_orden)]))+
+     section('Situación de órdenes',['Pendientes','Atrasadas','Finalizadas'],[[d.ordenesSituacion.pendientes||0,d.ordenesSituacion.atrasadas||0,d.ordenesSituacion.finalizadas||0]]);
+ }
+ if(view==='permisos'){
+   const rows=await api('permisos');
+   return head('Permisos','Permisos y roles asociados almacenados en la base de datos.',false)+
+     (rows.length?table(['Código','Nombre','Módulo','Roles'],rows.map(x=>[esc(x.codigo),esc(x.nombre),esc(x.modulo||''),esc(x.roles||'Sin asignar')])):empty('No hay permisos configurados'));
+ }
  if(view==='configuracion'){const rows=await api('configuracion');return head('Configuración','Parámetros generales guardados en CONFIGURACION_GENERAL.',false)+`<div class="form-card"><form id="configForm"><div class="form-grid">${rows.map(x=>`<div class="field"><label>${esc(x.clave)}</label><input name="${esc(x.clave)}" value="${esc(x.valor||'')}"><small>${esc(x.descripcion||'')}</small></div>`).join('')}</div><div class="modal-actions"><button class="btn primary">Guardar configuración</button></div></form></div>`;}
  if(view==='ordenes'){return renderResource('ordenes');}
  return renderResource(view);
@@ -356,6 +393,12 @@ function adminTableFor(resource,rows){
   return tableFor(resource,rows).replace(/data-action="(view|edit|delete)"/g, 'data-admin-action data-action="$1" data-resource="'+resource+'"');
 }
 
+function barChart(items,labelKey,valueKey){
+ const rows=(items||[]).slice(0,10);
+ if(!rows.length)return empty('Sin datos');
+ const max=Math.max(...rows.map(x=>Number(x[valueKey]||0)),1);
+ return `<div class="bar-chart">${rows.map(x=>{const v=Number(x[valueKey]||0);const pct=Math.max(2,Math.round(v/max*100));return `<div class="bar-row"><span>${esc(x[labelKey])}</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div><b>${esc(v.toLocaleString('es-CR'))}</b></div>`}).join('')}</div>`;
+}
 function table(headers,rows){return `<div class="table-wrap"><table class="data-table"><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(x=>`<td>${x??''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;}
 function empty(m){return `<div class="empty-state"><h3>${m}</h3></div>`;}
 async function openForm(view,id=null){
@@ -363,7 +406,7 @@ async function openForm(view,id=null){
  const r=resources[normalizedView];
  if(!r || !r.endpoint) throw new Error(`No existe configuración para el módulo "${view}".`);
  const data=id?(await api(`${r.endpoint}/${id}`)):{};
- state.editing={view,id};
+ state.editing={view,id,original:data};
  $('#modalTitle').textContent=id?`Editar ${r.singular}`:`Nuevo ${r.singular}`;
  $('#modalBody').innerHTML=`<form id="entityForm">${r.fields.map(f=>fieldHtml(view,f,data[f[0]])).join('')}</form>`;
  $('#modal').classList.add('show');
@@ -372,6 +415,8 @@ async function saveForm(){
  const f=$('#entityForm'), view=state.editing.view,r=resources[view];
  if(!r || !r.endpoint) throw new Error(`No existe configuración para el módulo "${view}".`);
  const data=Object.fromEntries(new FormData(f).entries());
+ const desiredOrderState=view==='ordenes'?data.estado:null;
+ if(view==='ordenes') delete data.estado;
  if(view==='vehiculos' && data.id_vehiculo_catalogo){
    const catalogo=await api(`vehiculos-catalogo/${data.id_vehiculo_catalogo}`);
    data.id_marca=catalogo.id_marca;
@@ -390,8 +435,14 @@ async function saveForm(){
      if(x[2]==='datetime-local' && data[x[0]].length===16) data[x[0]]+=':00';
    }
  });
- if(state.editing.id) await api(`${r.endpoint}/${state.editing.id}`,{method:'PUT',body:JSON.stringify(data)});
- else await api(r.endpoint,{method:'POST',body:JSON.stringify(data)});
+ if(state.editing.id){
+   await api(`${r.endpoint}/${state.editing.id}`,{method:'PUT',body:JSON.stringify(data)});
+   if(view==='ordenes'&&desiredOrderState&&desiredOrderState!==state.editing.original?.estado){
+     await api(`ordenes/${state.editing.id}/estado`,{method:'POST',body:JSON.stringify({estado:desiredOrderState,observacion:'Cambio de estado desde la interfaz'})});
+   }
+ }else{
+   await api(r.endpoint,{method:'POST',body:JSON.stringify(data)});
+ }
  $('#modal').classList.remove('show');toast('Guardado correctamente');await applyMenuPermissions();
 render();
 }
@@ -429,6 +480,11 @@ document.addEventListener('click',async e=>{
  const a=e.target.closest('[data-view]');if(a){e.preventDefault();if(!canAccessView(a.dataset.view))return toast('No tienes permisos para acceder a este módulo.','error');state.view=a.dataset.view;state.search='';document.querySelectorAll('#nav a').forEach(x=>x.classList.toggle('active',x===a));return render();}
  const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;
  try{
+  if(action==='report-filter'){
+    const desde=$('#reportDesde')?.value||'',hasta=$('#reportHasta')?.value||'';
+    state.reportQuery=`desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`;
+    return render();
+  }
   if(action==='new')return openForm(state.view);
   if(action==='save'){try{await saveForm();}catch(err){toast(err.message,'error');}return;}
   if(action==='refresh'){state.search='';return render();}
