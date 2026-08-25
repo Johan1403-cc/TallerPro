@@ -119,9 +119,14 @@ async function validarCita(pool,{CitaId=null,ClienteId,VehiculoId,AreaTrabajoId,
  if(Number(mecs.Cantidad)!==mecanicos.length){const e=new Error('Uno o más mecánicos seleccionados no están activos o no existen.');e.status=400;throw e;}
  const dur=Number(mins.Minutos||0);
  if(!(dur>0)){const e=new Error('La duración calculada de la cita debe ser mayor que cero.');e.status=400;throw e;}
- // Se mantiene la fecha/hora tal como la eligió el usuario. No se convierte a UTC con new Date(),
- // porque Render opera normalmente en UTC y eso desplazaba la hora local de Costa Rica.
- const fechaLocal=String(FechaHoraInicio).slice(0,19);
+ // Se mantiene la fecha/hora local tal como la eligió el usuario y se normaliza
+ // al formato ISO que SQL Server/Azure SQL acepta de forma consistente con estilo 126.
+ // Un input datetime-local normalmente envía YYYY-MM-DDTHH:mm (16 caracteres),
+ // por eso agregamos :00 para obtener YYYY-MM-DDTHH:mm:ss.
+ let fechaLocal=String(FechaHoraInicio).trim();
+ const mFecha=fechaLocal.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+ if(!mFecha){const e=new Error('La fecha y hora de inicio no son válidas.');e.status=400;throw e;}
+ fechaLocal=`${mFecha[1]}-${mFecha[2]}-${mFecha[3]}T${mFecha[4]}:${mFecha[5]}:${mFecha[6]||'00'}`;
  const col=(await pool.request()
    .input('id',sql.Int,Number(CitaId)||0)
    .input('inicioTxt',sql.NVarChar(30),fechaLocal)
