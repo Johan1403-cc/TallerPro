@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>TallerPro | Gestión Automotriz</title><link rel="stylesheet" href="/stylesheets/style.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></head><body><div class="app-shell"><aside class="sidebar" id="sidebar"><div class="brand"><i class="fa-solid fa-screwdriver-wrench"></i><span>Taller<strong>Pro</strong></span><button id="collapse"><i class="fa-solid fa-bars"></i></button></div><nav id="nav"><a class="active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a><a data-view="clientes"><i class="fa-solid fa-users"></i><span>Clientes</span></a><a data-view="vehiculos"><i class="fa-solid fa-car"></i><span>Vehículos de Clientes</span></a><a data-view="admin-vehiculos"><i class="fa-solid fa-car-side"></i><span>Administrar Vehículos</span></a><a data-view="citas"><i class="fa-solid fa-calendar-check"></i><span>Citas</span></a><a data-view="recepciones"><i class="fa-solid fa-clipboard-check"></i><span>Recepción</span></a><a data-view="diagnosticos"><i class="fa-solid fa-stethoscope"></i><span>Diagnósticos</span></a><a data-view="cotizaciones"><i class="fa-solid fa-file-invoice-dollar"></i><span>Cotizaciones</span></a><a data-view="ordenes"><i class="fa-solid fa-screwdriver"></i><span>Órdenes de trabajo</span></a><a data-view="empleados"><i class="fa-solid fa-user-gear"></i><span>Empleados</span></a><a data-view="servicios"><i class="fa-solid fa-wrench"></i><span>Servicios</span></a><a data-view="inventario"><i class="fa-solid fa-boxes-stacked"></i><span>Inventario</span></a><a data-view="proveedores"><i class="fa-solid fa-truck"></i><span>Proveedores</span></a><a data-view="compras"><i class="fa-solid fa-cart-shopping"></i><span>Compras</span></a><a data-view="ventas"><i class="fa-solid fa-cash-register"></i><span>Ventas</span></a><a data-view="garantias"><i class="fa-solid fa-shield-halved"></i><span>Garantías</span></a><a data-view="facturas"><i class="fa-solid fa-file-invoice"></i><span>Facturación</span></a><a data-view="usuarios"><i class="fa-solid fa-shield-halved"></i><span>Usuarios y roles</span></a><a data-view="reportes"><i class="fa-solid fa-chart-column"></i><span>Reportes</span></a><a data-view="configuracion"><i class="fa-solid fa-gear"></i><span>Configuración</span></a></nav><div class="sidebar-user"><div class="avatar">{{initials currentUser.nombre_usuario}}</div><div><b>{{currentUser.nombre_usuario}}</b><small>{{rolesText currentUser.roles}}</small></div></div></aside><main class="main"><header class="topbar"><button class="mobile-menu"><i class="fa-solid fa-bars"></i></button><div class="breadcrumbs">Sistema de gestión <span>/</span> <b id="crumb">Dashboard</b></div><div class="top-actions"><button><i class="fa-regular fa-bell"></i><em></em></button><button><i class="fa-regular fa-circle-question"></i></button><div class="profile"><div class="avatar">{{initials currentUser.nombre_usuario}}</div><span>{{currentUser.nombre_usuario}} <i class="fa-solid fa-chevron-down"></i></span></div><button id="logoutButton" class="logout-button" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></button></div></header><section class="content">{{{body}}}</section></main></div><div class="modal" id="modal"><div class="modal-card"><button class="close-modal">×</button><h2 id="modalTitle">Nuevo registro</h2><div id="modalBody"></div><div class="modal-actions"><button class="btn secondary close-modal">Cancelar</button><button type="button" class="btn primary" data-action="save">Guardar cambios</button></div></div></div><script>window.TALLERPRO_USER = {{{json currentUser}}};</script><script src="/javascripts/app.js?v=20260824-roles"></script>
+<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>TallerPro | Gestión Automotriz</title><link rel="stylesheet" href="/stylesheets/style.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"></head><body><div class="app-shell"><aside class="sidebar" id="sidebar"><div class="brand"><i class="fa-solid fa-screwdriver-wrench"></i><span>Taller<strong>Pro</strong></span><button id="collapse"><i class="fa-solid fa-bars"></i></button></div><nav id="nav"><a class="active" data-view="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a><a data-view="clientes"><i class="fa-solid fa-users"></i><span>Clientes</span></a><a data-view="vehiculos"><i class="fa-solid fa-car"></i><span>Vehículos de Clientes</span></a><a data-view="admin-vehiculos"><i class="fa-solid fa-car-side"></i><span>Administrar Vehículos</span></a><a data-view="citas"><i class="fa-solid fa-calendar-check"></i><span>Citas</span></a><a data-view="recepciones"><i class="fa-solid fa-clipboard-check"></i><span>Recepción</span></a><a data-view="diagnosticos"><i class="fa-solid fa-stethoscope"></i><span>Diagnósticos</span></a><a data-view="cotizaciones"><i class="fa-solid fa-file-invoice-dollar"></i><span>Cotizaciones</span></a><a data-view="ordenes"><i class="fa-solid fa-screwdriver"></i><span>Órdenes de trabajo</span></a><a data-view="empleados"><i class="fa-solid fa-user-gear"></i><span>Empleados</span></a><a data-view="servicios"><i class="fa-solid fa-wrench"></i><span>Servicios</span></a><a data-view="inventario"><i class="fa-solid fa-boxes-stacked"></i><span>Inventario</span></a><a data-view="proveedores"><i class="fa-solid fa-truck"></i><span>Proveedores</span></a><a data-view="compras"><i class="fa-solid fa-cart-shopping"></i><span>Compras</span></a><a data-view="ventas"><i class="fa-solid fa-cash-register"></i><span>Ventas</span></a><a data-view="garantias"><i class="fa-solid fa-shield-halved"></i><span>Garantías</span></a><a data-view="facturas"><i class="fa-solid fa-file-invoice"></i><span>Facturación</span></a><a data-view="usuarios"><i class="fa-solid fa-users-gear"></i><span>Usuarios y roles</span></a><a data-view="permisos"><i class="fa-solid fa-key"></i><span>Permisos</span></a><a data-view="reportes"><i class="fa-solid fa-chart-column"></i><span>Reportes</span></a><a data-view="configuracion"><i class="fa-solid fa-gear"></i><span>Configuración</span></a></nav><div class="sidebar-user"><div class="avatar">{{initials currentUser.nombre_usuario}}</div><div><b>{{currentUser.nombre_usuario}}</b><small>{{rolesText currentUser.roles}}</small></div></div></aside><main class="main"><header class="topbar"><button class="mobile-menu"><i class="fa-solid fa-bars"></i></button><div class="breadcrumbs">Sistema de gestión <span>/</span> <b id="crumb">Dashboard</b></div><div class="top-actions"><button id="notificationButton" title="Notificaciones"><i class="fa-regular fa-bell"></i><em id="notificationBadge" hidden></em></button><button><i class="fa-regular fa-circle-question"></i></button><div class="profile"><div class="avatar">{{initials currentUser.nombre_usuario}}</div><span>{{currentUser.nombre_usuario}} <i class="fa-solid fa-chevron-down"></i></span></div><button id="logoutButton" class="logout-button" title="Cerrar sesión"><i class="fa-solid fa-right-from-bracket"></i></button></div></header><section class="content">{{{body}}}</section></main></div><div class="modal" id="modal"><div class="modal-card"><button class="close-modal">×</button><h2 id="modalTitle">Nuevo registro</h2><div id="modalBody"></div><div class="modal-actions"><button class="btn secondary close-modal">Cancelar</button><button type="button" class="btn primary" data-action="save">Guardar cambios</button></div></div></div><script>window.TALLERPRO_USER = {{{json currentUser}}}; window.TALLERPRO_PERMISSIONS = {{{json permissions}}};</script><script src="/javascripts/app.js?v=20260824-roles"></script>
 <script>
   document.getElementById('logoutButton')?.addEventListener('click', async () => {
     try {
@@ -7,4 +7,60 @@
       window.location.href = '/';
     }
   });
-</script></body></html>
+</script>
+<script>
+(async function(){
+  const button=document.getElementById('notificationButton');
+  const badge=document.getElementById('notificationBadge');
+  if(!button)return;
+
+  async function refreshNotifications(){
+    try{
+      const response=await fetch('/api/notificaciones');
+      if(!response.ok)return;
+      const data=await response.json();
+      const unread=Number(data.unread||0);
+      badge.hidden=unread===0;
+      badge.textContent=unread>99?'99+':String(unread);
+      button.title=unread?`${unread} notificación(es) sin leer`:'Sin notificaciones pendientes';
+
+      button.onclick=()=>{
+        document.querySelector('.notification-panel')?.remove();
+        const panel=document.createElement('div');
+        panel.className='notification-panel';
+        panel.innerHTML=`<div class="notification-panel-head"><b>Notificaciones</b><button id="markAllNotifications">Marcar todas</button></div>
+          <div class="notification-list">${(data.items||[]).length
+            ?data.items.map(n=>`<div class="notification-item ${n.leida?'':'unread'}" data-notification-id="${n.id_notificacion}">
+                <b>${escapeHtml(n.tipo||'Aviso')}</b>
+                <p>${escapeHtml(n.mensaje||'')}</p>
+                <small>${new Date(n.fecha_hora).toLocaleString('es-CR')}</small>
+              </div>`).join('')
+            :'<div class="notification-empty">No hay notificaciones.</div>'}</div>`;
+        document.body.appendChild(panel);
+
+        document.getElementById('markAllNotifications')?.addEventListener('click',async()=>{
+          await fetch('/api/notificaciones/marcar-todas',{method:'PATCH'});
+          panel.remove();
+          refreshNotifications();
+        });
+
+        panel.addEventListener('click',async ev=>{
+          const item=ev.target.closest('[data-notification-id]');
+          if(!item)return;
+          await fetch(`/api/notificaciones/${item.dataset.notificationId}/leida`,{method:'PATCH'});
+          item.classList.remove('unread');
+          refreshNotifications();
+        });
+      };
+    }catch{}
+  }
+
+  function escapeHtml(value){
+    return String(value??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  }
+
+  refreshNotifications();
+  setInterval(refreshNotifications,60000);
+})();
+</script>
+</body></html>
