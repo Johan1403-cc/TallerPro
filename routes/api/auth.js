@@ -10,8 +10,27 @@ const {
 } = require('../auth');
 
 const router = express.Router();
-const MAX_FAILED_ATTEMPTS = Math.max(3, Number(process.env.LOGIN_MAX_ATTEMPTS || 5));
-const LOCK_MINUTES = Math.max(1, Number(process.env.LOGIN_LOCK_MINUTES || 15));
+const DEFAULT_MAX_FAILED_ATTEMPTS = 3;
+const DEFAULT_LOCK_MINUTES = 15;
+
+async function getSecuritySettings() {
+  try {
+    const r = await query(`
+      SELECT clave,valor
+      FROM CONFIGURACION_GENERAL
+      WHERE clave IN ('LOGIN_MAX_ATTEMPTS','LOGIN_LOCK_MINUTES')
+    `);
+    const map = Object.fromEntries(r.recordset.map(x => [String(x.clave).toUpperCase(), Number(x.valor)]));
+    return {
+      maxAttempts: Number.isInteger(map.LOGIN_MAX_ATTEMPTS) && map.LOGIN_MAX_ATTEMPTS >= 3 && map.LOGIN_MAX_ATTEMPTS <= 10
+        ? map.LOGIN_MAX_ATTEMPTS : DEFAULT_MAX_FAILED_ATTEMPTS,
+      lockMinutes: Number.isFinite(map.LOGIN_LOCK_MINUTES) && map.LOGIN_LOCK_MINUTES >= 1 && map.LOGIN_LOCK_MINUTES <= 1440
+        ? map.LOGIN_LOCK_MINUTES : DEFAULT_LOCK_MINUTES
+    };
+  } catch {
+    return { maxAttempts: DEFAULT_MAX_FAILED_ATTEMPTS, lockMinutes: DEFAULT_LOCK_MINUTES };
+  }
+}
 
 function verifyPassword(password, storedHash, storedSalt) {
   if (!storedHash || !storedSalt) return false;
@@ -42,6 +61,8 @@ router.post('/login', async (req, res, next) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Ingresa el correo electrónico y la contraseña.' });
     }
+
+    const { maxAttempts, lockMinutes } = await getSecuritySettings();
 
     const result = await query(`
       SELECT TOP 1
@@ -93,24 +114,22 @@ router.post('/login', async (req, res, next) => {
       const failed = await query(`
         UPDATE USUARIOS
         SET
-          intentos_fallidos = CASE
-            WHEN intentos_fallidos + 1 >= @maxAttempts THEN 0
-            ELSE intentos_fallidos + 1
-          END,
+          intentos_fallidos = intentos_fallidos + 1,
           bloqueado_hasta = CASE
             WHEN intentos_fallidos + 1 >= @maxAttempts
               THEN DATEADD(MINUTE, @lockMinutes, GETDATE())
-            ELSE NULL
+            ELSE bloqueado_hasta
           END
         OUTPUT INSERTED.intentos_fallidos, INSERTED.bloqueado_hasta
         WHERE id_usuario = @id_usuario
       `, {
         id_usuario: user.id_usuario,
-        maxAttempts: MAX_FAILED_ATTEMPTS,
-        lockMinutes: LOCK_MINUTES
+        maxAttempts,
+        lockMinutes
       });
 
       const state = failed.recordset[0] || {};
+      const attempts = Number(state.intentos_fallidos || 0);
       const locked = state.bloqueado_hasta && new Date(state.bloqueado_hasta) > new Date();
 
       await audit({
@@ -118,20 +137,19 @@ router.post('/login', async (req, res, next) => {
         ip: req.ip || null,
         accion: 'LOGIN_FALLIDO',
         descripcion: locked
-          ? `Cuenta bloqueada temporalmente por ${MAX_FAILED_ATTEMPTS} intentos fallidos.`
-          : 'Contraseña incorrecta.'
+          ? `Cuenta bloqueada temporalmente al alcanzar ${maxAttempts} intentos fallidos.`
+          : `Contraseña incorrecta. Intento ${attempts} de ${maxAttempts}.`
       });
 
       if (locked) {
         return res.status(423).json({
-          error: `Demasiados intentos fallidos. La cuenta queda bloqueada durante ${LOCK_MINUTES} minutos.`
+          error: `Cuenta bloqueada por ${lockMinutes} minutos después de ${maxAttempts} intentos fallidos.`
         });
       }
 
-      const attempts = Number(state.intentos_fallidos || 0);
       return res.status(401).json({
         error: 'Correo o contraseña incorrectos.',
-        remainingAttempts: Math.max(0, MAX_FAILED_ATTEMPTS - attempts)
+        remainingAttempts: Math.max(0, maxAttempts - attempts)
       });
     }
 
