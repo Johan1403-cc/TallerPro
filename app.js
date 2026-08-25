@@ -12,6 +12,9 @@ const apiRouter = require('./routes/api');
 
 const app = express();
 
+// Render actúa como proxy inverso; permite registrar la IP real del cliente.
+app.set('trust proxy', 1);
+
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'hbs');
 
