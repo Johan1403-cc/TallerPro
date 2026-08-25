@@ -21,16 +21,16 @@
 
       <div class="login-heading">
         <h1>Iniciar sesión</h1>
-        <p>Ingresa con tu usuario para acceder al sistema.</p>
+        <p>Ingresa con tu correo electrónico para acceder al sistema.</p>
       </div>
 
       <form id="loginForm" autocomplete="on">
         <label class="login-field">
-          <span>Usuario</span>
+          <span>Correo electrónico</span>
           <div class="login-input-wrap">
-            <i class="fa-solid fa-user"></i>
-            <input id="nombre_usuario" name="nombre_usuario" type="text"
-                   autocomplete="username" placeholder="Ej. admin" required autofocus>
+            <i class="fa-solid fa-envelope"></i>
+            <input id="email" name="email" type="email"
+                   autocomplete="username" placeholder="correo@tallerpro.com" required autofocus>
           </div>
         </label>
 
@@ -85,7 +85,7 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            nombre_usuario: document.getElementById('nombre_usuario').value,
+            email: document.getElementById('email').value.trim(),
             password: password.value
           })
         });
