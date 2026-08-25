@@ -1,42 +1,13 @@
 const crypto = require('crypto');
+const { query } = require('./bd');
 
 const COOKIE_NAME = 'tallerpro_session';
 const MAX_AGE_MS = 8 * 60 * 60 * 1000;
 
-// MODO PRUEBAS: permite entrar al sistema sin login cuando TEST_MODE=true.
-// Para una demostración real de roles, TEST_MODE debe estar en false.
-const TEST_MODE = String(process.env.TEST_MODE || '').toLowerCase() === 'true';
-const TEST_USER = {
-  id_usuario: 0,
-  nombre_usuario: 'Usuario de Pruebas',
-  email: 'pruebas@tallerpro.local',
-  roles: [{ id_rol: 0, nombre: 'Administrador', descripcion: 'Acceso de pruebas' }]
-};
-
-function normalizeRole(value) {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim()
-    .toLowerCase();
-}
-
-function userRoleNames(user) {
-  return Array.isArray(user?.roles)
-    ? user.roles.map(r => normalizeRole(r?.nombre || r)).filter(Boolean)
-    : [];
-}
-
-function hasRole(user, ...allowedRoles) {
-  const roles = userRoleNames(user);
-  if (roles.includes('administrador')) return true;
-  const allowed = allowedRoles.flat().map(normalizeRole);
-  return allowed.some(role => roles.includes(role));
-}
-
 function getSecret() {
-  const raw = process.env.APP_SESSION_SECRET || `${process.env.DB_PASSWORD || 'tallerpro'}:tallerpro-session`;
-  return crypto.createHash('sha256').update(raw).digest();
+  const raw = process.env.APP_SESSION_SECRET || process.env.DB_PASSWORD;
+  if (!raw) throw new Error('Configura APP_SESSION_SECRET en el entorno de producción.');
+  return crypto.createHash('sha256').update(String(raw)).digest();
 }
 
 function encrypt(payload) {
@@ -64,7 +35,7 @@ function decrypt(token) {
       decipher.final()
     ]).toString('utf8'));
 
-    if (!payload || !payload.id_usuario || !payload.nombre_usuario || !payload.exp) return null;
+    if (!payload || !payload.id_usuario || !payload.exp) return null;
     if (Date.now() > payload.exp) return null;
     return payload;
   } catch {
@@ -80,16 +51,10 @@ function createSession(user) {
     roles: user.roles || [],
     exp: Date.now() + MAX_AGE_MS
   };
-
-  return {
-    token: encrypt(payload),
-    payload
-  };
+  return { token: encrypt(payload), payload };
 }
 
 function getSessionUser(req) {
-  if (TEST_MODE) return TEST_USER;
-
   const token = req.cookies && req.cookies[COOKIE_NAME];
   return token ? decrypt(token) : null;
 }
@@ -105,34 +70,103 @@ function setSessionCookie(res, token) {
 }
 
 function clearSessionCookie(res) {
-  res.clearCookie(COOKIE_NAME, { httpOnly: true, sameSite: 'lax', path: '/' });
+  res.clearCookie(COOKIE_NAME, {
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/'
+  });
 }
 
-function requireAuth(req, res, next) {
-  const user = getSessionUser(req);
-  if (!user) {
-    if (req.originalUrl.startsWith('/api/')) {
-      return res.status(401).json({ error: 'Sesión no válida o expirada' });
+async function requireAuth(req, res, next) {
+  try {
+    const user = getSessionUser(req);
+    if (!user) {
+      if (req.originalUrl.startsWith('/api/')) {
+        return res.status(401).json({ error: 'Sesión no válida o expirada.' });
+      }
+      return res.redirect('/login');
     }
-    return res.redirect('/login');
-  }
 
-  req.user = user;
-  res.locals.currentUser = user;
-  next();
-}
+    const dbUser = await query(`
+      SELECT activo,bloqueado_hasta
+      FROM USUARIOS
+      WHERE id_usuario=@id_usuario
+    `,{id_usuario:Number(user.id_usuario)});
 
-function requireRoles(...allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Sesión no válida o expirada' });
+    const state=dbUser.recordset[0];
+    if(!state || !state.activo || (state.bloqueado_hasta && new Date(state.bloqueado_hasta)>new Date())){
+      clearSessionCookie(res);
+      if(req.originalUrl.startsWith('/api/')){
+        return res.status(401).json({error:'La sesión ya no está autorizada.'});
+      }
+      return res.redirect('/login');
     }
-    if (!hasRole(req.user, allowedRoles)) {
-      return res.status(403).json({
-        error: 'No tienes permisos para acceder a este módulo.'
-      });
-    }
+
+    req.user = user;
+    res.locals.currentUser = user;
     next();
+  } catch(e) {
+    next(e);
+  }
+}
+
+async function getUserPermissions(id_usuario) {
+  const result = await query(`
+    SELECT DISTINCT p.id_permiso, p.codigo, p.nombre, p.modulo
+    FROM USUARIO_ROL ur
+    INNER JOIN ROLES r ON r.id_rol = ur.id_rol
+    INNER JOIN ROL_PERMISO rp ON rp.id_rol = r.id_rol
+    INNER JOIN PERMISOS p ON p.id_permiso = rp.id_permiso
+    WHERE ur.id_usuario = @id_usuario
+      AND ISNULL(r.activo, 1) = 1
+    ORDER BY p.modulo, p.codigo
+  `, { id_usuario: Number(id_usuario) });
+  return result.recordset;
+}
+
+function requirePermission(...codes) {
+  const required = codes.flat().map(c => String(c || '').trim().toUpperCase()).filter(Boolean);
+  return async (req, res, next) => {
+    try {
+      if (!req.user) return res.status(401).json({ error: 'Sesión no válida o expirada.' });
+      if (!required.length) return res.status(403).json({ error: 'Operación no autorizada.' });
+
+      const params = { id_usuario: Number(req.user.id_usuario) };
+      const placeholders = required.map((code, i) => {
+        params[`perm${i}`] = code;
+        return `@perm${i}`;
+      });
+
+      const result = await query(`
+        SELECT TOP 1 p.codigo
+        FROM USUARIO_ROL ur
+        INNER JOIN ROLES r ON r.id_rol = ur.id_rol
+        INNER JOIN ROL_PERMISO rp ON rp.id_rol = r.id_rol
+        INNER JOIN PERMISOS p ON p.id_permiso = rp.id_permiso
+        WHERE ur.id_usuario = @id_usuario
+          AND ISNULL(r.activo, 1) = 1
+          AND UPPER(p.codigo) IN (${placeholders.join(',')})
+      `, params);
+
+      if (!result.recordset.length) {
+        return res.status(403).json({ error: 'No tienes permiso para realizar esta operación.' });
+      }
+      next();
+    } catch (e) {
+      next(e);
+    }
+  };
+}
+
+function modulePermission(moduleName) {
+  const prefix = String(moduleName || '').trim().toUpperCase();
+  return (req, res, next) => {
+    let action = 'CONSULTAR';
+    if (req.method === 'POST') action = 'REGISTRAR';
+    else if (req.method === 'PUT' || req.method === 'PATCH') action = 'MODIFICAR';
+    else if (req.method === 'DELETE') action = 'ELIMINAR';
+    return requirePermission(`${prefix}_${action}`)(req, res, next);
   };
 }
 
@@ -144,8 +178,7 @@ module.exports = {
   setSessionCookie,
   clearSessionCookie,
   requireAuth,
-  requireRoles,
-  hasRole,
-  userRoleNames,
-  normalizeRole
+  requirePermission,
+  modulePermission,
+  getUserPermissions
 };
